@@ -395,7 +395,12 @@ export default function MapaScreen() {
               {modal.latitude.toFixed(6)}, {modal.longitude.toFixed(6)}
             </Text>
 
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 20 }}
+              style={{ flex: 1 }}
+            >
               {/* Nome Científico */}
               <Text style={styles.inputLabel}>Nome Científico *</Text>
               <TextInput
@@ -757,6 +762,8 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: 40,
     maxHeight: "90%",
+    flex: 0,
+    flexShrink: 1,
   },
   modalTitle: {
     fontSize: 20,
