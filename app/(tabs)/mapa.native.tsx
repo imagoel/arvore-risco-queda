@@ -14,7 +14,7 @@ import {
   Image,
   Dimensions,
 } from "react-native";
-import MapView, { Marker, MapPressEvent, Region } from "react-native-maps";
+import MapView, { Marker, MapPressEvent, Region, PROVIDER_GOOGLE } from "react-native-maps";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
@@ -391,6 +391,7 @@ export default function MapaScreen() {
         <MapView
           ref={mapRef}
           style={styles.map}
+          provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
           initialRegion={defaultRegion}
           showsUserLocation
           showsMyLocationButton={false}

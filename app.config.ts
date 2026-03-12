@@ -61,7 +61,6 @@ const config: ExpoConfig = {
       backgroundImage: "./assets/images/android-icon-background.png",
       monochromeImage: "./assets/images/android-icon-monochrome.png",
     },
-    edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
     package: env.androidPackage,
     permissions: ["POST_NOTIFICATIONS", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
