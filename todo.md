@@ -23,3 +23,8 @@
 - [x] Listar marcadores de árvores cadastradas no mapa
 - [x] Adicionar aba "Mapa" na navegação inferior
 - [x] Ícone de mapa na tab bar
+- [x] Adicionar campo de foto no modal de cadastro de árvore
+- [x] Opção de tirar foto com câmera ou escolher da galeria
+- [x] Exibir miniatura da foto no modal e no painel de detalhes
+- [x] Persistir URI da foto junto com os dados do marcador
+- [x] Configurar permissões de câmera e galeria no app.config.ts

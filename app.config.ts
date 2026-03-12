@@ -112,6 +112,13 @@ const config: ExpoConfig = {
       },
     ],
     [
+      "expo-image-picker",
+      {
+        photosPermission: "Permitir que o app acesse suas fotos para documentar árvores.",
+        cameraPermission: "Permitir que o app use a câmera para fotografar árvores.",
+      },
+    ],
+    [
       "expo-location",
       {
         locationAlwaysAndWhenInUsePermission: "Permitir que o app acesse sua localização para identificar árvores no mapa.",

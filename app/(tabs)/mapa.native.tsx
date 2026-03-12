@@ -11,10 +11,12 @@ import {
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
+  Image,
 } from "react-native";
 import MapView, { Marker, MapPressEvent, Region } from "react-native-maps";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenContainer } from "@/components/screen-container";
 
@@ -26,6 +28,7 @@ interface TreeMarker {
   longitude: number;
   nomeCientifico: string;
   descricao: string;
+  fotoUri: string | null;
   criadoEm: string;
 }
 
@@ -35,11 +38,11 @@ interface ModalState {
   longitude: number;
   nomeCientifico: string;
   descricao: string;
+  fotoUri: string | null;
   editingId: string | null;
 }
 
 const STORAGE_KEY = "@arvore_marcadores";
-
 const PURPLE = "#5B2EBE";
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
@@ -57,8 +60,10 @@ export default function MapaScreen() {
     longitude: 0,
     nomeCientifico: "",
     descricao: "",
+    fotoUri: null,
     editingId: null,
   });
+  const [photoPickerVisible, setPhotoPickerVisible] = useState(false);
 
   // ── Load saved markers ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -97,11 +102,7 @@ export default function MapaScreen() {
         };
         setUserLocation(coords);
         mapRef.current?.animateToRegion(
-          {
-            ...coords,
-            latitudeDelta: 0.005,
-            longitudeDelta: 0.005,
-          },
+          { ...coords, latitudeDelta: 0.005, longitudeDelta: 0.005 },
           800
         );
       } catch {
@@ -112,12 +113,49 @@ export default function MapaScreen() {
     })();
   }, []);
 
+  // ── Photo: take with camera ─────────────────────────────────────────────────
+  const handleTakePhoto = useCallback(async () => {
+    setPhotoPickerVisible(false);
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permissão necessária", "Permita o acesso à câmera para tirar uma foto.");
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.75,
+    });
+    if (!result.canceled) {
+      setModal((m) => ({ ...m, fotoUri: result.assets[0].uri }));
+      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }, []);
+
+  // ── Photo: pick from gallery ────────────────────────────────────────────────
+  const handlePickGallery = useCallback(async () => {
+    setPhotoPickerVisible(false);
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permissão necessária", "Permita o acesso à galeria para selecionar uma foto.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.75,
+    });
+    if (!result.canceled) {
+      setModal((m) => ({ ...m, fotoUri: result.assets[0].uri }));
+      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }, []);
+
   // ── Handle map press → open modal to add marker ────────────────────────────
   const handleMapPress = useCallback((e: MapPressEvent) => {
     const { latitude, longitude } = e.nativeEvent.coordinate;
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedMarker(null);
     setModal({
       visible: true,
@@ -125,15 +163,14 @@ export default function MapaScreen() {
       longitude,
       nomeCientifico: "",
       descricao: "",
+      fotoUri: null,
       editingId: null,
     });
   }, []);
 
-  // ── Handle marker press → show detail / edit ───────────────────────────────
+  // ── Handle marker press → show detail ─────────────────────────────────────
   const handleMarkerPress = useCallback((marker: TreeMarker) => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedMarker(marker);
   }, []);
 
@@ -143,14 +180,18 @@ export default function MapaScreen() {
       Alert.alert("Campo obrigatório", "Informe o nome científico da árvore.");
       return;
     }
-    if (Platform.OS !== "web") {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
+    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
     if (modal.editingId) {
       setMarkers((prev) =>
         prev.map((m) =>
           m.id === modal.editingId
-            ? { ...m, nomeCientifico: modal.nomeCientifico.trim(), descricao: modal.descricao.trim() }
+            ? {
+                ...m,
+                nomeCientifico: modal.nomeCientifico.trim(),
+                descricao: modal.descricao.trim(),
+                fotoUri: modal.fotoUri,
+              }
             : m
         )
       );
@@ -161,6 +202,7 @@ export default function MapaScreen() {
         longitude: modal.longitude,
         nomeCientifico: modal.nomeCientifico.trim(),
         descricao: modal.descricao.trim(),
+        fotoUri: modal.fotoUri,
         criadoEm: new Date().toLocaleString("pt-BR"),
       };
       setMarkers((prev) => [...prev, newMarker]);
@@ -177,6 +219,7 @@ export default function MapaScreen() {
       longitude: marker.longitude,
       nomeCientifico: marker.nomeCientifico,
       descricao: marker.descricao,
+      fotoUri: marker.fotoUri ?? null,
       editingId: marker.id,
     });
   }, []);
@@ -189,9 +232,7 @@ export default function MapaScreen() {
         text: "Remover",
         style: "destructive",
         onPress: () => {
-          if (Platform.OS !== "web") {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          }
+          if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
           setMarkers((prev) => prev.filter((m) => m.id !== id));
           setSelectedMarker(null);
         },
@@ -202,9 +243,7 @@ export default function MapaScreen() {
   // ── Center on user ──────────────────────────────────────────────────────────
   const handleCenterUser = useCallback(() => {
     if (!userLocation) return;
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     mapRef.current?.animateToRegion(
       { ...userLocation, latitudeDelta: 0.005, longitudeDelta: 0.005 },
       600
@@ -284,10 +323,22 @@ export default function MapaScreen() {
       {selectedMarker && (
         <View style={styles.detailSheet}>
           <View style={styles.detailHandle} />
+
+          {/* Photo */}
+          {selectedMarker.fotoUri ? (
+            <Image
+              source={{ uri: selectedMarker.fotoUri }}
+              style={styles.detailPhoto}
+              resizeMode="cover"
+            />
+          ) : null}
+
           <View style={styles.detailHeader}>
-            <View style={styles.detailTreeIcon}>
-              <Text style={styles.detailTreeEmoji}>🌳</Text>
-            </View>
+            {!selectedMarker.fotoUri && (
+              <View style={styles.detailTreeIcon}>
+                <Text style={styles.detailTreeEmoji}>🌳</Text>
+              </View>
+            )}
             <View style={{ flex: 1 }}>
               <Text style={styles.detailName}>{selectedMarker.nomeCientifico}</Text>
               <Text style={styles.detailDate}>{selectedMarker.criadoEm}</Text>
@@ -296,6 +347,7 @@ export default function MapaScreen() {
               <Text style={styles.detailCloseText}>✕</Text>
             </TouchableOpacity>
           </View>
+
           {selectedMarker.descricao ? (
             <Text style={styles.detailDesc}>{selectedMarker.descricao}</Text>
           ) : (
@@ -373,6 +425,43 @@ export default function MapaScreen() {
               />
               <View style={styles.inputUnderline} />
 
+              {/* Foto */}
+              <Text style={[styles.inputLabel, { marginTop: 20 }]}>Foto da Árvore</Text>
+              {modal.fotoUri ? (
+                <View style={styles.photoPreviewContainer}>
+                  <Image
+                    source={{ uri: modal.fotoUri }}
+                    style={styles.photoPreview}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.photoActions}>
+                    <TouchableOpacity
+                      style={styles.photoActionBtn}
+                      onPress={() => setPhotoPickerVisible(true)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.photoActionText}>Trocar foto</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.photoActionBtn, styles.photoRemoveBtn]}
+                      onPress={() => setModal((m) => ({ ...m, fotoUri: null }))}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.photoRemoveText}>Remover</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.photoPlaceholder}
+                  onPress={() => setPhotoPickerVisible(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.photoPlaceholderIcon}>📷</Text>
+                  <Text style={styles.photoPlaceholderText}>Adicionar foto</Text>
+                </TouchableOpacity>
+              )}
+
               {/* Buttons */}
               <View style={styles.modalButtons}>
                 <TouchableOpacity
@@ -395,6 +484,51 @@ export default function MapaScreen() {
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── Photo Picker Action Sheet ───────────────────────────────────────── */}
+      <Modal
+        visible={photoPickerVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setPhotoPickerVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.pickerOverlay}
+          activeOpacity={1}
+          onPress={() => setPhotoPickerVisible(false)}
+        >
+          <View style={styles.pickerSheet}>
+            <View style={styles.detailHandle} />
+            <Text style={styles.pickerTitle}>Adicionar Foto</Text>
+
+            <TouchableOpacity style={styles.pickerOption} onPress={handleTakePhoto} activeOpacity={0.8}>
+              <Text style={styles.pickerOptionIcon}>📷</Text>
+              <View>
+                <Text style={styles.pickerOptionLabel}>Tirar Foto</Text>
+                <Text style={styles.pickerOptionSub}>Usar a câmera do dispositivo</Text>
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.pickerDivider} />
+
+            <TouchableOpacity style={styles.pickerOption} onPress={handlePickGallery} activeOpacity={0.8}>
+              <Text style={styles.pickerOptionIcon}>🖼️</Text>
+              <View>
+                <Text style={styles.pickerOptionLabel}>Escolher da Galeria</Text>
+                <Text style={styles.pickerOptionSub}>Selecionar uma foto existente</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.pickerCancelBtn}
+              onPress={() => setPhotoPickerVisible(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.pickerCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </Modal>
     </ScreenContainer>
   );
@@ -524,6 +658,12 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: 8,
   },
+  detailPhoto: {
+    width: "100%",
+    height: 180,
+    borderRadius: 12,
+    marginBottom: 4,
+  },
   detailHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -616,7 +756,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 24,
     paddingBottom: 40,
-    maxHeight: "85%",
+    maxHeight: "90%",
   },
   modalTitle: {
     fontSize: 20,
@@ -653,6 +793,65 @@ const styles = StyleSheet.create({
     backgroundColor: "#CCCCCC",
     marginTop: 2,
   },
+
+  // Photo
+  photoPlaceholder: {
+    height: 120,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#CCCCCC",
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#F9F9F9",
+    marginTop: 4,
+  },
+  photoPlaceholderIcon: {
+    fontSize: 32,
+  },
+  photoPlaceholderText: {
+    fontSize: 15,
+    color: "#888888",
+    fontWeight: "500",
+  },
+  photoPreviewContainer: {
+    marginTop: 4,
+    gap: 8,
+  },
+  photoPreview: {
+    width: "100%",
+    height: 180,
+    borderRadius: 12,
+  },
+  photoActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  photoActionBtn: {
+    flex: 1,
+    height: 38,
+    borderRadius: 50,
+    borderWidth: 1.5,
+    borderColor: PURPLE,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoActionText: {
+    color: PURPLE,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  photoRemoveBtn: {
+    borderColor: "#DC2626",
+  },
+  photoRemoveText: {
+    color: "#DC2626",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  // Buttons
   modalButtons: {
     flexDirection: "row",
     gap: 12,
@@ -689,5 +888,63 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 17,
     fontWeight: "700",
+  },
+
+  // Photo Picker Action Sheet
+  pickerOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  pickerSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  pickerTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1A2E22",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  pickerOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    paddingVertical: 14,
+  },
+  pickerOptionIcon: {
+    fontSize: 28,
+  },
+  pickerOptionLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111111",
+  },
+  pickerOptionSub: {
+    fontSize: 13,
+    color: "#888888",
+    marginTop: 2,
+  },
+  pickerDivider: {
+    height: 1,
+    backgroundColor: "#EEEEEE",
+  },
+  pickerCancelBtn: {
+    marginTop: 20,
+    height: 52,
+    borderRadius: 50,
+    borderWidth: 1.5,
+    borderColor: "#CCCCCC",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pickerCancelText: {
+    color: "#666666",
+    fontSize: 16,
+    fontWeight: "500",
   },
 });

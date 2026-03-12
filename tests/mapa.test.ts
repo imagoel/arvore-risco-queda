@@ -8,6 +8,7 @@ interface TreeMarker {
   longitude: number;
   nomeCientifico: string;
   descricao: string;
+  fotoUri: string | null;
   criadoEm: string;
 }
 
@@ -18,7 +19,7 @@ function addMarker(markers: TreeMarker[], newMarker: TreeMarker): TreeMarker[] {
 function editMarker(
   markers: TreeMarker[],
   id: string,
-  updates: Partial<Pick<TreeMarker, "nomeCientifico" | "descricao">>
+  updates: Partial<Pick<TreeMarker, "nomeCientifico" | "descricao" | "fotoUri">>
 ): TreeMarker[] {
   return markers.map((m) => (m.id === id ? { ...m, ...updates } : m));
 }
@@ -34,6 +35,7 @@ function makeMarker(overrides: Partial<TreeMarker> = {}): TreeMarker {
     longitude: -38.5014,
     nomeCientifico: "Ficus benjamina",
     descricao: "Árvore com inclinação leve",
+    fotoUri: null,
     criadoEm: "12/03/2026 10:00",
     ...overrides,
   };
@@ -66,6 +68,30 @@ describe("Lógica de marcadores do mapa", () => {
     const marker = makeMarker({ id: "1" });
     const result = editMarker([marker], "1", { descricao: "Tronco com cavidade" });
     expect(result[0].descricao).toBe("Tronco com cavidade");
+  });
+
+  it("salva fotoUri ao criar marcador com foto", () => {
+    const marker = makeMarker({ id: "1", fotoUri: "file:///path/to/photo.jpg" });
+    const result = addMarker([], marker);
+    expect(result[0].fotoUri).toBe("file:///path/to/photo.jpg");
+  });
+
+  it("fotoUri é null quando marcador criado sem foto", () => {
+    const marker = makeMarker({ id: "1" });
+    const result = addMarker([], marker);
+    expect(result[0].fotoUri).toBeNull();
+  });
+
+  it("atualiza fotoUri ao editar marcador", () => {
+    const marker = makeMarker({ id: "1", fotoUri: null });
+    const result = editMarker([marker], "1", { fotoUri: "file:///nova-foto.jpg" });
+    expect(result[0].fotoUri).toBe("file:///nova-foto.jpg");
+  });
+
+  it("remove fotoUri ao editar marcador com null", () => {
+    const marker = makeMarker({ id: "1", fotoUri: "file:///foto.jpg" });
+    const result = editMarker([marker], "1", { fotoUri: null });
+    expect(result[0].fotoUri).toBeNull();
   });
 
   it("não altera outros marcadores ao editar", () => {
