@@ -52,9 +52,12 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: env.iosBundleId,
-    "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
+    config: {
+      googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    },
+    infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
+    },
   },
   android: {
     config: {

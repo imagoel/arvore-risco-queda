@@ -38,3 +38,4 @@
 - [x] Corrigir deleção de árvore quebrada no mapa
 - [x] Investigar e corrigir definitivamente crash ao abrir mapa no Android APK (downgrade react-native-maps 1.18.4 + PROVIDER_GOOGLE)
 - [x] Configurar Google Maps API Key no app.config.ts para corrigir crash no Android APK
+- [x] Configurar Google Maps API Key para iOS no app.config.ts (mesma chave Android/iOS, PROVIDER_GOOGLE em ambas plataformas)
