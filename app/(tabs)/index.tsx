@@ -10,7 +10,6 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
-import { useColors } from "@/hooks/use-colors";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -21,9 +20,7 @@ interface FormState {
   dap: string;
   dcolo: string;
   anguloInclinacao: string;
-  coloDiag1: string;
-  coloDiag2: string;
-  coloDiag3: string;
+  coloDiagnosticado: string;
   ramificacaoV: boolean;
   corpoFrutificacao: boolean;
 }
@@ -33,6 +30,7 @@ interface RiskResult {
   label: string;
   color: string;
   bgColor: string;
+  borderColor: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -49,86 +47,88 @@ function calcularRisco(form: FormState): number {
   const dap = parseNum(form.dap);
   const dcolo = parseNum(form.dcolo);
   const ang = parseNum(form.anguloInclinacao);
-  const cd1 = parseNum(form.coloDiag1);
-  const cd2 = parseNum(form.coloDiag2);
-  const cd3 = parseNum(form.coloDiag3);
+  // Colo Diagnosticado (Soma) — único campo que representa a soma dos 3 diagnósticos
+  const coloDiag = parseNum(form.coloDiagnosticado);
   const rv = form.ramificacaoV ? 1 : 0;
   const cf = form.corpoFrutificacao ? 1 : 0;
 
-  // IRQ = (((DiametroCopa² * (π/4)) * 0.5) * (AlturaGeral - AlturaRamificacao))
-  //       * ((DAP / DCOLO) * AnguloInclinacao * 1)
-  //       + ((ColoDiag1 + ColoDiag2 + ColoDiag3) * 800)
-  //       + (RamificacaoV * (-800))
-  //       + (CorpoFrutificacao * (-800))
-
+  // IRQ = (((Ø copa² × π/4) × 0.5) × (Alt. Geral − Alt. Ramif.))
+  //       × ((DAP / DCOLO) × Ângulo × 1)
+  //       + (Colo Diag. × 800)
+  //       + (Ramif. V × −800)
+  //       + (Corpo Frutif. × −800)
   const areaCopa = dc * dc * (Math.PI / 4);
   const volumeCopa = areaCopa * 0.5 * (ag - ar);
   const fatorDap = dcolo !== 0 ? (dap / dcolo) * ang * 1 : 0;
-  const irq =
+  return (
     volumeCopa * fatorDap +
-    (cd1 + cd2 + cd3) * 800 +
+    coloDiag * 800 +
     rv * -800 +
-    cf * -800;
-
-  return irq;
+    cf * -800
+  );
 }
 
 function classifyRisk(irq: number): RiskResult {
   if (irq < 0) {
-    return { index: irq, label: "Baixo", color: "#1B4332", bgColor: "#D8F3DC" };
+    return {
+      index: irq,
+      label: "Baixo",
+      color: "#166534",
+      bgColor: "#DCFCE7",
+      borderColor: "#16A34A",
+    };
   } else if (irq <= 5000) {
-    return { index: irq, label: "Moderado", color: "#7B4F00", bgColor: "#FEF3C7" };
+    return {
+      index: irq,
+      label: "Moderado",
+      color: "#854D0E",
+      bgColor: "#FEF9C3",
+      borderColor: "#CA8A04",
+    };
   } else if (irq <= 15000) {
-    return { index: irq, label: "Alto", color: "#7C2D12", bgColor: "#FFEDD5" };
+    return {
+      index: irq,
+      label: "Alto",
+      color: "#9A3412",
+      bgColor: "#FFEDD5",
+      borderColor: "#EA580C",
+    };
   } else {
-    return { index: irq, label: "Muito Alto", color: "#7F1D1D", bgColor: "#FEE2E2" };
+    return {
+      index: irq,
+      label: "Muito Alto",
+      color: "#991B1B",
+      bgColor: "#FEE2E2",
+      borderColor: "#DC2626",
+    };
   }
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function SectionTitle({ title }: { title: string }) {
-  return (
-    <Text style={styles.sectionTitle}>{title}</Text>
-  );
-}
-
 function FieldInput({
   label,
-  unit,
   value,
   onChangeText,
-  placeholder,
 }: {
   label: string;
-  unit?: string;
   value: string;
   onChangeText: (v: string) => void;
-  placeholder?: string;
 }) {
-  const colors = useColors();
   return (
-    <View style={styles.fieldRow}>
-      <View style={styles.fieldLabelContainer}>
-        <Text style={[styles.fieldLabel, { color: colors.foreground }]}>{label}</Text>
-        {unit ? <Text style={[styles.fieldUnit, { color: colors.muted }]}>{unit}</Text> : null}
-      </View>
+    <View style={styles.fieldContainer}>
+      <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
-        style={[
-          styles.input,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.border,
-            color: colors.foreground,
-          },
-        ]}
+        style={styles.input}
         value={value}
         onChangeText={onChangeText}
         keyboardType="decimal-pad"
-        placeholder={placeholder ?? "0"}
-        placeholderTextColor={colors.muted}
+        placeholder=""
+        placeholderTextColor="#AAAAAA"
         returnKeyType="done"
+        underlineColorAndroid="transparent"
       />
+      <View style={styles.inputUnderline} />
     </View>
   );
 }
@@ -142,13 +142,9 @@ function CheckboxField({
   value: boolean;
   onToggle: () => void;
 }) {
-  const colors = useColors();
   return (
     <TouchableOpacity
-      style={[
-        styles.checkboxRow,
-        { backgroundColor: colors.surface, borderColor: colors.border },
-      ]}
+      style={styles.checkboxRow}
       onPress={() => {
         if (Platform.OS !== "web") {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -157,18 +153,10 @@ function CheckboxField({
       }}
       activeOpacity={0.75}
     >
-      <View
-        style={[
-          styles.checkbox,
-          {
-            borderColor: value ? "#2D6A4F" : colors.border,
-            backgroundColor: value ? "#2D6A4F" : colors.surface,
-          },
-        ]}
-      >
+      <View style={[styles.checkbox, value && styles.checkboxChecked]}>
         {value && <Text style={styles.checkmark}>✓</Text>}
       </View>
-      <Text style={[styles.checkboxLabel, { color: colors.foreground }]}>{label}</Text>
+      <Text style={styles.checkboxLabel}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -182,15 +170,12 @@ const emptyForm: FormState = {
   dap: "",
   dcolo: "",
   anguloInclinacao: "",
-  coloDiag1: "",
-  coloDiag2: "",
-  coloDiag3: "",
+  coloDiagnosticado: "",
   ramificacaoV: false,
   corpoFrutificacao: false,
 };
 
 export default function HomeScreen() {
-  const colors = useColors();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [result, setResult] = useState<RiskResult | null>(null);
 
@@ -218,92 +203,55 @@ export default function HomeScreen() {
   return (
     <ScreenContainer containerClassName="bg-background">
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 40 }]}
+        contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Header com borda vermelha */}
         <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: "#2D6A4F" }]}>
-            Risco de Queda de Árvore
-          </Text>
-          <Text style={[styles.headerSubtitle, { color: colors.muted }]}>
-            Índice de Risco — IRQ
-          </Text>
+          <Text style={styles.headerTitle}>RISCO DE QUEDA DE ÁRVORE</Text>
+          <Text style={styles.headerSubtitle}>Índice de Risco — IRQ</Text>
         </View>
 
-        {/* Card: Dimensões da Árvore */}
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <SectionTitle title="Dimensões da Árvore" />
-          <FieldInput
-            label="Diâmetro da Copa"
-            unit="m"
-            value={form.diametroCopa}
-            onChangeText={(v) => setField("diametroCopa", v)}
-          />
-          <FieldInput
-            label="Altura Geral"
-            unit="m"
-            value={form.alturaGeral}
-            onChangeText={(v) => setField("alturaGeral", v)}
-          />
-          <FieldInput
-            label="Altura da 1ª Ramificação"
-            unit="m"
-            value={form.alturaRamificacao}
-            onChangeText={(v) => setField("alturaRamificacao", v)}
-          />
-        </View>
+        {/* Campos */}
+        <FieldInput
+          label="Diâmetro da Copa"
+          value={form.diametroCopa}
+          onChangeText={(v) => setField("diametroCopa", v)}
+        />
+        <FieldInput
+          label="Altura Geral"
+          value={form.alturaGeral}
+          onChangeText={(v) => setField("alturaGeral", v)}
+        />
+        <FieldInput
+          label="Altura da 1ª Ramificação"
+          value={form.alturaRamificacao}
+          onChangeText={(v) => setField("alturaRamificacao", v)}
+        />
+        <FieldInput
+          label="DAP"
+          value={form.dap}
+          onChangeText={(v) => setField("dap", v)}
+        />
+        <FieldInput
+          label="DCOLO"
+          value={form.dcolo}
+          onChangeText={(v) => setField("dcolo", v)}
+        />
+        <FieldInput
+          label="Ângulo de Inclinação"
+          value={form.anguloInclinacao}
+          onChangeText={(v) => setField("anguloInclinacao", v)}
+        />
+        <FieldInput
+          label="Colo Diagnosticado (Soma)"
+          value={form.coloDiagnosticado}
+          onChangeText={(v) => setField("coloDiagnosticado", v)}
+        />
 
-        {/* Card: Parâmetros do Tronco */}
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <SectionTitle title="Parâmetros do Tronco" />
-          <FieldInput
-            label="DAP"
-            unit="cm"
-            value={form.dap}
-            onChangeText={(v) => setField("dap", v)}
-          />
-          <FieldInput
-            label="DCOLO"
-            unit="cm"
-            value={form.dcolo}
-            onChangeText={(v) => setField("dcolo", v)}
-          />
-          <FieldInput
-            label="Ângulo de Inclinação"
-            unit="°"
-            value={form.anguloInclinacao}
-            onChangeText={(v) => setField("anguloInclinacao", v)}
-          />
-        </View>
-
-        {/* Card: Diagnóstico do Colo */}
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <SectionTitle title="Colo Diagnosticado (Soma)" />
-          <FieldInput
-            label="Colo Diagnóstico 1"
-            value={form.coloDiag1}
-            onChangeText={(v) => setField("coloDiag1", v)}
-            placeholder="0"
-          />
-          <FieldInput
-            label="Colo Diagnóstico 2"
-            value={form.coloDiag2}
-            onChangeText={(v) => setField("coloDiag2", v)}
-            placeholder="0"
-          />
-          <FieldInput
-            label="Colo Diagnóstico 3"
-            value={form.coloDiag3}
-            onChangeText={(v) => setField("coloDiag3", v)}
-            placeholder="0"
-          />
-        </View>
-
-        {/* Card: Fatores de Risco */}
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <SectionTitle title="Fatores de Risco" />
+        {/* Checkboxes */}
+        <View style={styles.checkboxSection}>
           <CheckboxField
             label="Ramificação em V"
             value={form.ramificacaoV}
@@ -316,30 +264,29 @@ export default function HomeScreen() {
           />
         </View>
 
-        {/* Buttons */}
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.btnSecondary, { borderColor: colors.border }]}
-            onPress={handleLimpar}
-            activeOpacity={0.75}
-          >
-            <Text style={[styles.btnSecondaryText, { color: colors.muted }]}>Limpar</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.btnPrimary}
-            onPress={handleCalcular}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.btnPrimaryText}>Calcular Risco</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Botões */}
+        <TouchableOpacity
+          style={styles.btnCalcular}
+          onPress={handleCalcular}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.btnCalcularText}>Calcular Risco</Text>
+        </TouchableOpacity>
 
-        {/* Result */}
+        <TouchableOpacity
+          style={styles.btnLimpar}
+          onPress={handleLimpar}
+          activeOpacity={0.75}
+        >
+          <Text style={styles.btnLimparText}>Limpar</Text>
+        </TouchableOpacity>
+
+        {/* Resultado */}
         {result !== null && (
           <View
             style={[
               styles.resultCard,
-              { backgroundColor: result.bgColor, borderColor: result.color },
+              { backgroundColor: result.bgColor, borderColor: result.borderColor },
             ]}
           >
             <Text style={[styles.resultLabel, { color: result.color }]}>
@@ -351,17 +298,13 @@ export default function HomeScreen() {
                 maximumFractionDigits: 2,
               })}
             </Text>
-            <View style={[styles.riskBadge, { backgroundColor: result.color }]}>
+            <View style={[styles.riskBadge, { backgroundColor: result.borderColor }]}>
               <Text style={styles.riskBadgeText}>Risco {result.label}</Text>
             </View>
-            <Text style={[styles.resultFormula, { color: result.color }]}>
-              IRQ = (((Ø copa² × π/4) × 0,5) × (Alt. Geral − Alt. Ramif.)){"\n"}
-              × ((DAP / DCOLO) × Ângulo){"\n"}
-              + (Colo Diag. × 800){"\n"}
-              − (Ramif. V × 800) − (Corpo Frutif. × 800)
-            </Text>
           </View>
         )}
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </ScreenContainer>
   );
@@ -369,133 +312,145 @@ export default function HomeScreen() {
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
+const PURPLE = "#5B2EBE";
+const PURPLE_LIGHT = "#7C4DFF";
+
 const styles = StyleSheet.create({
   scrollContent: {
-    padding: 16,
-    gap: 16,
+    paddingHorizontal: 20,
+    paddingTop: 16,
   },
+
+  // Header
   header: {
+    borderWidth: 2,
+    borderColor: "#CC0000",
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
     alignItems: "center",
-    paddingVertical: 12,
-    gap: 4,
+    marginBottom: 24,
+    backgroundColor: "#FFFFFF",
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#111111",
     textAlign: "center",
-    letterSpacing: -0.3,
+    letterSpacing: 0.2,
   },
   headerSubtitle: {
-    fontSize: 13,
-    fontWeight: "500",
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333333",
+    textAlign: "center",
+    marginTop: 4,
   },
-  card: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    gap: 12,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#2D6A4F",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 2,
-  },
-  fieldRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  fieldLabelContainer: {
-    flex: 1,
-    gap: 1,
+
+  // Fields
+  fieldContainer: {
+    marginBottom: 20,
   },
   fieldLabel: {
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  fieldUnit: {
-    fontSize: 12,
+    fontSize: 14,
+    color: "#666666",
+    marginBottom: 6,
+    fontWeight: "400",
   },
   input: {
-    width: 110,
-    height: 44,
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    fontWeight: "500",
-    textAlign: "right",
+    fontSize: 18,
+    color: "#111111",
+    paddingVertical: 4,
+    paddingHorizontal: 0,
+    fontWeight: "400",
+    backgroundColor: "transparent",
+  },
+  inputUnderline: {
+    height: 1,
+    backgroundColor: "#CCCCCC",
+    marginTop: 2,
+  },
+
+  // Checkboxes
+  checkboxSection: {
+    gap: 14,
+    marginBottom: 28,
+    marginTop: 8,
   },
   checkboxRow: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
-    gap: 12,
+    gap: 14,
   },
   checkbox: {
-    width: 24,
-    height: 24,
+    width: 28,
+    height: 28,
     borderRadius: 6,
     borderWidth: 2,
+    borderColor: PURPLE,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  checkboxChecked: {
+    backgroundColor: PURPLE,
+    borderColor: PURPLE,
   },
   checkmark: {
     color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "700",
-    lineHeight: 18,
+    fontSize: 16,
+    fontWeight: "800",
+    lineHeight: 20,
   },
   checkboxLabel: {
-    fontSize: 16,
-    fontWeight: "500",
-    flex: 1,
+    fontSize: 17,
+    color: "#111111",
+    fontWeight: "400",
   },
-  buttonRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 4,
-  },
-  btnPrimary: {
-    flex: 1,
-    backgroundColor: "#2D6A4F",
-    borderRadius: 14,
-    height: 52,
+
+  // Buttons
+  btnCalcular: {
+    backgroundColor: PURPLE,
+    borderRadius: 50,
+    height: 56,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 12,
+    shadowColor: PURPLE_LIGHT,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  btnPrimaryText: {
+  btnCalcularText: {
     color: "#FFFFFF",
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: "700",
-    letterSpacing: -0.2,
+    letterSpacing: 0.2,
   },
-  btnSecondary: {
-    width: 90,
-    borderRadius: 14,
-    height: 52,
+  btnLimpar: {
+    borderRadius: 50,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1.5,
+    borderColor: "#CCCCCC",
+    marginBottom: 24,
   },
-  btnSecondaryText: {
-    fontSize: 15,
-    fontWeight: "600",
+  btnLimparText: {
+    color: "#666666",
+    fontSize: 16,
+    fontWeight: "500",
   },
+
+  // Result
   resultCard: {
-    borderRadius: 20,
+    borderRadius: 16,
     borderWidth: 2,
     padding: 24,
     alignItems: "center",
-    gap: 12,
+    gap: 10,
+    marginBottom: 8,
   },
   resultLabel: {
     fontSize: 13,
@@ -504,7 +459,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   resultIndex: {
-    fontSize: 42,
+    fontSize: 44,
     fontWeight: "800",
     letterSpacing: -1,
   },
@@ -512,17 +467,11 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     paddingHorizontal: 20,
     paddingVertical: 6,
+    marginTop: 4,
   },
   riskBadgeText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
-  },
-  resultFormula: {
-    fontSize: 11,
-    textAlign: "center",
-    lineHeight: 18,
-    marginTop: 8,
-    opacity: 0.7,
   },
 });

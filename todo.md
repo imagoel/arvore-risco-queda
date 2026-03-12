@@ -12,3 +12,8 @@
 - [x] Adicionar botão Limpar campos
 - [x] Atualizar app.config.ts com nome e branding
 - [x] Salvar checkpoint e entregar ao usuário
+- [x] Redesenhar layout: remover cards/subdivisões, usar campos com linha simples
+- [x] Colo Diagnosticado como campo único (soma dos 3 valores)
+- [x] Checkboxes no estilo roxo com fundo preenchido
+- [x] Botão "Calcular Risco" largo, arredondado e roxo
+- [x] Cabeçalho com borda vermelha no estilo do app original
