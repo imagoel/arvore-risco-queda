@@ -17,3 +17,9 @@
 - [x] Checkboxes no estilo roxo com fundo preenchido
 - [x] Botão "Calcular Risco" largo, arredondado e roxo
 - [x] Cabeçalho com borda vermelha no estilo do app original
+- [x] Criar tela de mapa com geolocalização do agente em tempo real
+- [x] Permitir marcar pontos no mapa para identificar árvores
+- [x] Modal de cadastro de árvore: nome científico e descrição
+- [x] Listar marcadores de árvores cadastradas no mapa
+- [x] Adicionar aba "Mapa" na navegação inferior
+- [x] Ícone de mapa na tab bar
