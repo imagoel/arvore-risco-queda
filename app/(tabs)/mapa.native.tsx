@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Image,
+  Dimensions,
 } from "react-native";
 import MapView, { Marker, MapPressEvent, Region } from "react-native-maps";
 import * as Location from "expo-location";
@@ -20,6 +21,8 @@ import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenContainer } from "@/components/screen-container";
 import { classifyRisk, formatIRQ, type RiskResult } from "@/lib/irq";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -31,9 +34,9 @@ export interface TreeMarker {
   descricao: string;
   fotoUri: string | null;
   criadoEm: string;
-  irq: number | null;        // Índice de Risco de Queda calculado
-  riskLabel: string | null;  // "Baixo" | "Moderado" | "Alto" | "Muito Alto"
-  riskColor: string | null;  // pin color
+  irq: number | null;
+  riskLabel: string | null;
+  riskColor: string | null;
 }
 
 interface ModalState {
@@ -46,11 +49,6 @@ interface ModalState {
   editingId: string | null;
 }
 
-const STORAGE_KEY = "@arvore_marcadores_v2";
-const PURPLE = "#5B2EBE";
-
-// ─── IRQ Form Fields ──────────────────────────────────────────────────────────
-
 interface IRQFormState {
   diametroCopa: string;
   alturaGeral: string;
@@ -62,6 +60,9 @@ interface IRQFormState {
   ramificacaoV: boolean;
   corpoFrutificacao: boolean;
 }
+
+const STORAGE_KEY = "@arvore_marcadores_v3";
+const PURPLE = "#5B2EBE";
 
 const emptyIRQForm: IRQFormState = {
   diametroCopa: "",
@@ -143,20 +144,6 @@ function IRQCheckbox({
   );
 }
 
-// ─── Risk Badge ───────────────────────────────────────────────────────────────
-
-function RiskBadge({ irq, riskLabel, riskColor }: { irq: number; riskLabel: string; riskColor: string }) {
-  const result = classifyRisk(irq);
-  return (
-    <View style={[irqStyles.riskBadgeContainer, { backgroundColor: result.bgColor, borderColor: result.borderColor }]}>
-      <Text style={[irqStyles.riskBadgeLabel, { color: result.color }]}>IRQ: {formatIRQ(irq)}</Text>
-      <View style={[irqStyles.riskBadgePill, { backgroundColor: result.borderColor }]}>
-        <Text style={irqStyles.riskBadgePillText}>Risco {riskLabel}</Text>
-      </View>
-    </View>
-  );
-}
-
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
 export default function MapaScreen() {
@@ -176,8 +163,6 @@ export default function MapaScreen() {
     editingId: null,
   });
   const [photoPickerVisible, setPhotoPickerVisible] = useState(false);
-
-  // IRQ modal state
   const [irqModalVisible, setIrqModalVisible] = useState(false);
   const [irqMarkerId, setIrqMarkerId] = useState<string | null>(null);
   const [irqForm, setIrqForm] = useState<IRQFormState>(emptyIRQForm);
@@ -485,7 +470,6 @@ export default function MapaScreen() {
         <View style={styles.detailSheet}>
           <View style={styles.detailHandle} />
 
-          {/* Photo */}
           {selectedMarker.fotoUri ? (
             <Image source={{ uri: selectedMarker.fotoUri }} style={styles.detailPhoto} resizeMode="cover" />
           ) : null}
@@ -505,9 +489,15 @@ export default function MapaScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* IRQ result if available */}
-          {selectedMarker.irq !== null && selectedMarker.riskLabel && selectedMarker.riskColor ? (
-            <RiskBadge irq={selectedMarker.irq} riskLabel={selectedMarker.riskLabel} riskColor={selectedMarker.riskColor} />
+          {selectedMarker.irq !== null && selectedMarker.riskLabel ? (
+            <View style={[styles.riskBadgeContainer, { backgroundColor: classifyRisk(selectedMarker.irq).bgColor, borderColor: classifyRisk(selectedMarker.irq).borderColor }]}>
+              <Text style={[styles.riskBadgeLabel, { color: classifyRisk(selectedMarker.irq).color }]}>
+                IRQ: {formatIRQ(selectedMarker.irq)}
+              </Text>
+              <View style={[styles.riskBadgePill, { backgroundColor: classifyRisk(selectedMarker.irq).borderColor }]}>
+                <Text style={styles.riskBadgePillText}>Risco {selectedMarker.riskLabel}</Text>
+              </View>
+            </View>
           ) : (
             <TouchableOpacity
               style={styles.irqPromptBtn}
@@ -558,94 +548,98 @@ export default function MapaScreen() {
       <Modal
         visible={modal.visible}
         animationType="slide"
-        transparent
+        transparent={true}
+        statusBarTranslucent={true}
         onRequestClose={() => setModal((m) => ({ ...m, visible: false }))}
       >
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
-          <View style={styles.modalSheet}>
-            <View style={styles.detailHandle} />
-            <Text style={styles.modalTitle}>
-              {modal.editingId ? "Editar Árvore" : "Cadastrar Árvore"}
-            </Text>
-            <Text style={styles.modalCoords}>
-              {modal.latitude.toFixed(6)}, {modal.longitude.toFixed(6)}
-            </Text>
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            style={styles.modalKAV}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            keyboardVerticalOffset={0}
+          >
+            <View style={styles.modalSheet}>
+              <View style={styles.detailHandle} />
+              <Text style={styles.modalTitle}>
+                {modal.editingId ? "Editar Árvore" : "Cadastrar Árvore"}
+              </Text>
+              <Text style={styles.modalCoords}>
+                {modal.latitude.toFixed(6)}, {modal.longitude.toFixed(6)}
+              </Text>
 
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ paddingBottom: 20 }}
-              style={{ flex: 1 }}
-            >
-              <Text style={styles.inputLabel}>Nome Científico *</Text>
-              <TextInput
-                style={styles.textInput}
-                value={modal.nomeCientifico}
-                onChangeText={(v) => setModal((m) => ({ ...m, nomeCientifico: v }))}
-                placeholder="Ex: Ficus benjamina"
-                placeholderTextColor="#AAAAAA"
-                returnKeyType="next"
-                autoCapitalize="sentences"
-              />
-              <View style={styles.inputUnderline} />
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.modalScrollContent}
+              >
+                <Text style={styles.inputLabel}>Nome Científico *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={modal.nomeCientifico}
+                  onChangeText={(v) => setModal((m) => ({ ...m, nomeCientifico: v }))}
+                  placeholder="Ex: Ficus benjamina"
+                  placeholderTextColor="#AAAAAA"
+                  returnKeyType="next"
+                  autoCapitalize="sentences"
+                />
+                <View style={styles.inputUnderline} />
 
-              <Text style={[styles.inputLabel, { marginTop: 20 }]}>Descrição do Estado</Text>
-              <TextInput
-                style={[styles.textInput, styles.textArea]}
-                value={modal.descricao}
-                onChangeText={(v) => setModal((m) => ({ ...m, descricao: v }))}
-                placeholder="Descreva brevemente o estado da árvore..."
-                placeholderTextColor="#AAAAAA"
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-                returnKeyType="done"
-                autoCapitalize="sentences"
-              />
-              <View style={styles.inputUnderline} />
+                <Text style={[styles.inputLabel, { marginTop: 20 }]}>Descrição do Estado</Text>
+                <TextInput
+                  style={[styles.textInput, styles.textArea]}
+                  value={modal.descricao}
+                  onChangeText={(v) => setModal((m) => ({ ...m, descricao: v }))}
+                  placeholder="Descreva brevemente o estado da árvore..."
+                  placeholderTextColor="#AAAAAA"
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                  returnKeyType="done"
+                  autoCapitalize="sentences"
+                />
+                <View style={styles.inputUnderline} />
 
-              {/* Foto */}
-              <Text style={[styles.inputLabel, { marginTop: 20 }]}>Foto da Árvore</Text>
-              {modal.fotoUri ? (
-                <View style={styles.photoPreviewContainer}>
-                  <Image source={{ uri: modal.fotoUri }} style={styles.photoPreview} resizeMode="cover" />
-                  <View style={styles.photoActions}>
-                    <TouchableOpacity style={styles.photoActionBtn} onPress={() => setPhotoPickerVisible(true)} activeOpacity={0.8}>
-                      <Text style={styles.photoActionText}>Trocar foto</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[styles.photoActionBtn, styles.photoRemoveBtn]} onPress={() => setModal((m) => ({ ...m, fotoUri: null }))} activeOpacity={0.8}>
-                      <Text style={styles.photoRemoveText}>Remover</Text>
-                    </TouchableOpacity>
+                {/* Foto */}
+                <Text style={[styles.inputLabel, { marginTop: 20 }]}>Foto da Árvore</Text>
+                {modal.fotoUri ? (
+                  <View style={styles.photoPreviewContainer}>
+                    <Image source={{ uri: modal.fotoUri }} style={styles.photoPreview} resizeMode="cover" />
+                    <View style={styles.photoActions}>
+                      <TouchableOpacity style={styles.photoActionBtn} onPress={() => setPhotoPickerVisible(true)} activeOpacity={0.8}>
+                        <Text style={styles.photoActionText}>Trocar foto</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.photoActionBtn, styles.photoRemoveBtn]} onPress={() => setModal((m) => ({ ...m, fotoUri: null }))} activeOpacity={0.8}>
+                        <Text style={styles.photoRemoveText}>Remover</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              ) : (
-                <TouchableOpacity style={styles.photoPlaceholder} onPress={() => setPhotoPickerVisible(true)} activeOpacity={0.8}>
-                  <Text style={styles.photoPlaceholderIcon}>📷</Text>
-                  <Text style={styles.photoPlaceholderText}>Adicionar foto</Text>
-                </TouchableOpacity>
-              )}
+                ) : (
+                  <TouchableOpacity style={styles.photoPlaceholder} onPress={() => setPhotoPickerVisible(true)} activeOpacity={0.8}>
+                    <Text style={styles.photoPlaceholderIcon}>📷</Text>
+                    <Text style={styles.photoPlaceholderText}>Adicionar foto</Text>
+                  </TouchableOpacity>
+                )}
 
-              <View style={styles.modalButtons}>
-                <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setModal((m) => ({ ...m, visible: false }))} activeOpacity={0.75}>
-                  <Text style={styles.modalBtnCancelText}>Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.modalBtnSave} onPress={handleSaveMarker} activeOpacity={0.85}>
-                  <Text style={styles.modalBtnSaveText}>{modal.editingId ? "Salvar" : "Cadastrar"}</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setModal((m) => ({ ...m, visible: false }))} activeOpacity={0.75}>
+                    <Text style={styles.modalBtnCancelText}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.modalBtnSave} onPress={handleSaveMarker} activeOpacity={0.85}>
+                    <Text style={styles.modalBtnSaveText}>{modal.editingId ? "Salvar" : "Cadastrar"}</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       {/* ── Photo Picker Action Sheet ───────────────────────────────────────── */}
       <Modal
         visible={photoPickerVisible}
         animationType="slide"
-        transparent
+        transparent={true}
+        statusBarTranslucent={true}
         onRequestClose={() => setPhotoPickerVisible(false)}
       >
         <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setPhotoPickerVisible(false)}>
@@ -678,71 +672,71 @@ export default function MapaScreen() {
       <Modal
         visible={irqModalVisible}
         animationType="slide"
-        transparent
+        transparent={true}
+        statusBarTranslucent={true}
         onRequestClose={() => setIrqModalVisible(false)}
       >
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-        >
-          <View style={[styles.modalSheet, { maxHeight: "95%" }]}>
-            <View style={styles.detailHandle} />
-            <Text style={styles.modalTitle}>Calcular Risco (IRQ)</Text>
-            <Text style={[styles.modalCoords, { marginBottom: 12 }]}>
-              Preencha os dados para calcular o índice
-            </Text>
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            style={styles.modalKAV}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            keyboardVerticalOffset={0}
+          >
+            <View style={[styles.modalSheet, { maxHeight: SCREEN_HEIGHT * 0.92 }]}>
+              <View style={styles.detailHandle} />
+              <Text style={styles.modalTitle}>Calcular Risco (IRQ)</Text>
+              <Text style={[styles.modalCoords, { marginBottom: 12 }]}>
+                Preencha os dados para calcular o índice
+              </Text>
 
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ paddingBottom: 20 }}
-              style={{ flex: 1 }}
-            >
-              <IRQFieldInput label="Diâmetro da Copa" value={irqForm.diametroCopa} onChangeText={(v) => setIrqForm((f) => ({ ...f, diametroCopa: v }))} />
-              <IRQFieldInput label="Altura Geral" value={irqForm.alturaGeral} onChangeText={(v) => setIrqForm((f) => ({ ...f, alturaGeral: v }))} />
-              <IRQFieldInput label="Altura da 1ª Ramificação" value={irqForm.alturaRamificacao} onChangeText={(v) => setIrqForm((f) => ({ ...f, alturaRamificacao: v }))} />
-              <IRQFieldInput label="DAP" value={irqForm.dap} onChangeText={(v) => setIrqForm((f) => ({ ...f, dap: v }))} />
-              <IRQFieldInput label="DCOLO" value={irqForm.dcolo} onChangeText={(v) => setIrqForm((f) => ({ ...f, dcolo: v }))} />
-              <IRQFieldInput label="Ângulo de Inclinação" value={irqForm.anguloInclinacao} onChangeText={(v) => setIrqForm((f) => ({ ...f, anguloInclinacao: v }))} />
-              <IRQFieldInput label="Colo Diagnosticado (Soma)" value={irqForm.coloDiagnosticado} onChangeText={(v) => setIrqForm((f) => ({ ...f, coloDiagnosticado: v }))} />
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.modalScrollContent}
+              >
+                <IRQFieldInput label="Diâmetro da Copa" value={irqForm.diametroCopa} onChangeText={(v) => setIrqForm((f) => ({ ...f, diametroCopa: v }))} />
+                <IRQFieldInput label="Altura Geral" value={irqForm.alturaGeral} onChangeText={(v) => setIrqForm((f) => ({ ...f, alturaGeral: v }))} />
+                <IRQFieldInput label="Altura da 1ª Ramificação" value={irqForm.alturaRamificacao} onChangeText={(v) => setIrqForm((f) => ({ ...f, alturaRamificacao: v }))} />
+                <IRQFieldInput label="DAP" value={irqForm.dap} onChangeText={(v) => setIrqForm((f) => ({ ...f, dap: v }))} />
+                <IRQFieldInput label="DCOLO" value={irqForm.dcolo} onChangeText={(v) => setIrqForm((f) => ({ ...f, dcolo: v }))} />
+                <IRQFieldInput label="Ângulo de Inclinação" value={irqForm.anguloInclinacao} onChangeText={(v) => setIrqForm((f) => ({ ...f, anguloInclinacao: v }))} />
+                <IRQFieldInput label="Colo Diagnosticado (Soma)" value={irqForm.coloDiagnosticado} onChangeText={(v) => setIrqForm((f) => ({ ...f, coloDiagnosticado: v }))} />
 
-              <View style={irqStyles.checkboxSection}>
-                <IRQCheckbox label="Ramificação em V" value={irqForm.ramificacaoV} onToggle={() => setIrqForm((f) => ({ ...f, ramificacaoV: !f.ramificacaoV }))} />
-                <IRQCheckbox label="Corpo de Frutificação" value={irqForm.corpoFrutificacao} onToggle={() => setIrqForm((f) => ({ ...f, corpoFrutificacao: !f.corpoFrutificacao }))} />
-              </View>
-
-              {/* Calcular button */}
-              <TouchableOpacity style={irqStyles.btnCalcular} onPress={handleCalculateIRQ} activeOpacity={0.85}>
-                <Text style={irqStyles.btnCalcularText}>Calcular</Text>
-              </TouchableOpacity>
-
-              {/* Result */}
-              {irqResult && (
-                <View style={[irqStyles.resultCard, { backgroundColor: irqResult.bgColor, borderColor: irqResult.borderColor }]}>
-                  <Text style={[irqStyles.resultLabel, { color: irqResult.color }]}>Índice de Risco de Queda</Text>
-                  <Text style={[irqStyles.resultIndex, { color: irqResult.color }]}>{formatIRQ(irqResult.index)}</Text>
-                  <View style={[irqStyles.riskBadge, { backgroundColor: irqResult.borderColor }]}>
-                    <Text style={irqStyles.riskBadgeText}>Risco {irqResult.label}</Text>
-                  </View>
+                <View style={irqStyles.checkboxSection}>
+                  <IRQCheckbox label="Ramificação em V" value={irqForm.ramificacaoV} onToggle={() => setIrqForm((f) => ({ ...f, ramificacaoV: !f.ramificacaoV }))} />
+                  <IRQCheckbox label="Corpo de Frutificação" value={irqForm.corpoFrutificacao} onToggle={() => setIrqForm((f) => ({ ...f, corpoFrutificacao: !f.corpoFrutificacao }))} />
                 </View>
-              )}
 
-              {/* Modal buttons */}
-              <View style={styles.modalButtons}>
-                <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setIrqModalVisible(false)} activeOpacity={0.75}>
-                  <Text style={styles.modalBtnCancelText}>Cancelar</Text>
+                <TouchableOpacity style={irqStyles.btnCalcular} onPress={handleCalculateIRQ} activeOpacity={0.85}>
+                  <Text style={irqStyles.btnCalcularText}>Calcular</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalBtnSave, !irqResult && { opacity: 0.5 }]}
-                  onPress={handleSaveIRQ}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.modalBtnSaveText}>Salvar no Marcador</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
+
+                {irqResult && (
+                  <View style={[irqStyles.resultCard, { backgroundColor: irqResult.bgColor, borderColor: irqResult.borderColor }]}>
+                    <Text style={[irqStyles.resultLabel, { color: irqResult.color }]}>Índice de Risco de Queda</Text>
+                    <Text style={[irqStyles.resultIndex, { color: irqResult.color }]}>{formatIRQ(irqResult.index)}</Text>
+                    <View style={[irqStyles.riskBadge, { backgroundColor: irqResult.borderColor }]}>
+                      <Text style={irqStyles.riskBadgeText}>Risco {irqResult.label}</Text>
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setIrqModalVisible(false)} activeOpacity={0.75}>
+                    <Text style={styles.modalBtnCancelText}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalBtnSave, !irqResult && { opacity: 0.5 }]}
+                    onPress={handleSaveIRQ}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.modalBtnSaveText}>Salvar no Marcador</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
     </ScreenContainer>
   );
@@ -768,10 +762,6 @@ const irqStyles = StyleSheet.create({
   resultIndex: { fontSize: 36, fontWeight: "800", letterSpacing: -1 },
   riskBadge: { borderRadius: 100, paddingHorizontal: 16, paddingVertical: 5, marginTop: 2 },
   riskBadgeText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
-  riskBadgeContainer: { borderRadius: 12, borderWidth: 1.5, padding: 12, alignItems: "center", gap: 6 },
-  riskBadgeLabel: { fontSize: 13, fontWeight: "700" },
-  riskBadgePill: { borderRadius: 100, paddingHorizontal: 14, paddingVertical: 4 },
-  riskBadgePillText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
 });
 
 // ─── Map Styles ───────────────────────────────────────────────────────────────
@@ -787,7 +777,6 @@ const styles = StyleSheet.create({
   hintBanner: { position: "absolute", top: 16, left: 16, right: 160, backgroundColor: "rgba(255,255,255,0.92)", borderRadius: 10, padding: 10, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   hintText: { color: "#444", fontSize: 12, fontWeight: "500" },
 
-  // Legend
   legend: { position: "absolute", top: 16, right: 16, backgroundColor: "rgba(255,255,255,0.95)", borderRadius: 10, padding: 10, gap: 6, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   legendRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
@@ -825,9 +814,34 @@ const styles = StyleSheet.create({
   irqPromptBtn: { backgroundColor: "#F0FDF4", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#BBF7D0", alignItems: "center" },
   irqPromptText: { color: "#166534", fontSize: 14, fontWeight: "600" },
 
-  // Modal
-  modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
-  modalSheet: { backgroundColor: "#FFFFFF", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, maxHeight: "90%", flex: 0, flexShrink: 1 },
+  // Risk badge in detail
+  riskBadgeContainer: { borderRadius: 12, borderWidth: 1.5, padding: 12, alignItems: "center", gap: 6 },
+  riskBadgeLabel: { fontSize: 13, fontWeight: "700" },
+  riskBadgePill: { borderRadius: 100, paddingHorizontal: 14, paddingVertical: 4 },
+  riskBadgePillText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
+
+  // Modal — key fix: outer overlay is just a backdrop, KAV + sheet are separate
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  modalKAV: {
+    // No flex:1 here — let the sheet define its own height
+    justifyContent: "flex-end",
+  },
+  modalSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 40,
+    maxHeight: SCREEN_HEIGHT * 0.88,
+  },
+  modalScrollContent: {
+    paddingBottom: 20,
+  },
   modalTitle: { fontSize: 20, fontWeight: "800", color: "#1A2E22", marginBottom: 4 },
   modalCoords: { fontSize: 12, color: "#AAAAAA", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", marginBottom: 20 },
   inputLabel: { fontSize: 14, color: "#666666", marginBottom: 6, fontWeight: "400" },

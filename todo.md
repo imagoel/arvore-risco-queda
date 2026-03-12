@@ -33,3 +33,6 @@
 - [x] Corrigir crash ao abrir tela de mapa no Android (APK minimiza)
 - [x] Implementar vinculação do IRQ ao marcador do mapa
 - [x] Colorir pino do mapa conforme nível de risco (verde/amarelo/laranja/vermelho)
+- [x] Corrigir crash/campos sumidos no modal de cadastro de árvore no mapa (Expo Go)
+- [x] Corrigir edição de árvore quebrada no mapa
+- [x] Corrigir deleção de árvore quebrada no mapa
