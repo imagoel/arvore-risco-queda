@@ -30,3 +30,6 @@
 - [x] Configurar permissões de câmera e galeria no app.config.ts
 - [x] Corrigir tela de calculadora preta no celular (usar cores fixas verdes em vez de tokens de tema)
 - [x] Corrigir botão de foto não aparece no modal do mapa no celular
+- [x] Corrigir crash ao abrir tela de mapa no Android (APK minimiza)
+- [x] Implementar vinculação do IRQ ao marcador do mapa
+- [x] Colorir pino do mapa conforme nível de risco (verde/amarelo/laranja/vermelho)

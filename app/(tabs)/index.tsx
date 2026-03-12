@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
+import { classifyRisk, formatIRQ } from "@/lib/irq";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -23,14 +24,6 @@ interface FormState {
   coloDiagnosticado: string;
   ramificacaoV: boolean;
   corpoFrutificacao: boolean;
-}
-
-interface RiskResult {
-  index: number;
-  label: string;
-  color: string;
-  bgColor: string;
-  borderColor: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -66,42 +59,6 @@ function calcularRisco(form: FormState): number {
     rv * -800 +
     cf * -800
   );
-}
-
-function classifyRisk(irq: number): RiskResult {
-  if (irq < 0) {
-    return {
-      index: irq,
-      label: "Baixo",
-      color: "#166534",
-      bgColor: "#DCFCE7",
-      borderColor: "#16A34A",
-    };
-  } else if (irq <= 5000) {
-    return {
-      index: irq,
-      label: "Moderado",
-      color: "#854D0E",
-      bgColor: "#FEF9C3",
-      borderColor: "#CA8A04",
-    };
-  } else if (irq <= 15000) {
-    return {
-      index: irq,
-      label: "Alto",
-      color: "#9A3412",
-      bgColor: "#FFEDD5",
-      borderColor: "#EA580C",
-    };
-  } else {
-    return {
-      index: irq,
-      label: "Muito Alto",
-      color: "#991B1B",
-      bgColor: "#FEE2E2",
-      borderColor: "#DC2626",
-    };
-  }
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -177,7 +134,7 @@ const emptyForm: FormState = {
 
 export default function HomeScreen() {
   const [form, setForm] = useState<FormState>(emptyForm);
-  const [result, setResult] = useState<RiskResult | null>(null);
+  const [result, setResult] = useState<ReturnType<typeof classifyRisk> | null>(null);
 
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -293,10 +250,7 @@ export default function HomeScreen() {
               Índice de Risco de Queda
             </Text>
             <Text style={[styles.resultIndex, { color: result.color }]}>
-              {result.index.toLocaleString("pt-BR", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
+              {formatIRQ(result.index)}
             </Text>
             <View style={[styles.riskBadge, { backgroundColor: result.borderColor }]}>
               <Text style={styles.riskBadgeText}>Risco {result.label}</Text>

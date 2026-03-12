@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { classifyRisk } from "../lib/irq";
 
-// ─── Replicating marker logic from the map screen ─────────────────────────────
+// ─── Marker types (mirrored from mapa.native.tsx) ────────────────────────────
 
 interface TreeMarker {
   id: string;
@@ -10,6 +11,25 @@ interface TreeMarker {
   descricao: string;
   fotoUri: string | null;
   criadoEm: string;
+  irq: number | null;
+  riskLabel: string | null;
+  riskColor: string | null;
+}
+
+function makeMarker(overrides: Partial<TreeMarker> = {}): TreeMarker {
+  return {
+    id: "1",
+    latitude: -12.9714,
+    longitude: -38.5014,
+    nomeCientifico: "Ficus benjamina",
+    descricao: "Árvore com inclinação leve",
+    fotoUri: null,
+    criadoEm: "12/03/2026 10:00",
+    irq: null,
+    riskLabel: null,
+    riskColor: null,
+    ...overrides,
+  };
 }
 
 function addMarker(markers: TreeMarker[], newMarker: TreeMarker): TreeMarker[] {
@@ -28,17 +48,13 @@ function deleteMarker(markers: TreeMarker[], id: string): TreeMarker[] {
   return markers.filter((m) => m.id !== id);
 }
 
-function makeMarker(overrides: Partial<TreeMarker> = {}): TreeMarker {
-  return {
-    id: "1",
-    latitude: -12.9714,
-    longitude: -38.5014,
-    nomeCientifico: "Ficus benjamina",
-    descricao: "Árvore com inclinação leve",
-    fotoUri: null,
-    criadoEm: "12/03/2026 10:00",
-    ...overrides,
-  };
+function applyIRQ(markers: TreeMarker[], id: string, irq: number): TreeMarker[] {
+  const result = classifyRisk(irq);
+  return markers.map((m) =>
+    m.id === id
+      ? { ...m, irq: result.index, riskLabel: result.label, riskColor: result.pinColor }
+      : m
+  );
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -120,5 +136,75 @@ describe("Lógica de marcadores do mapa", () => {
     const result = editMarker([marker], "1", { nomeCientifico: "Outro nome" });
     expect(result[0].latitude).toBe(-12.9714);
     expect(result[0].longitude).toBe(-38.5014);
+  });
+});
+
+describe("IRQ vinculado ao marcador", () => {
+  it("aplica risco Baixo (irq < 0) com pino verde", () => {
+    const list = [makeMarker({ id: "1" })];
+    const updated = applyIRQ(list, "1", -500);
+    expect(updated[0].riskLabel).toBe("Baixo");
+    expect(updated[0].riskColor).toBe("#16A34A");
+    expect(updated[0].irq).toBe(-500);
+  });
+
+  it("aplica risco Moderado (0 <= irq <= 5000) com pino amarelo", () => {
+    const list = [makeMarker({ id: "1" })];
+    const updated = applyIRQ(list, "1", 2500);
+    expect(updated[0].riskLabel).toBe("Moderado");
+    expect(updated[0].riskColor).toBe("#CA8A04");
+  });
+
+  it("aplica risco Alto (5001 <= irq <= 15000) com pino laranja", () => {
+    const list = [makeMarker({ id: "1" })];
+    const updated = applyIRQ(list, "1", 10000);
+    expect(updated[0].riskLabel).toBe("Alto");
+    expect(updated[0].riskColor).toBe("#EA580C");
+  });
+
+  it("aplica risco Muito Alto (irq > 15000) com pino vermelho", () => {
+    const list = [makeMarker({ id: "1" })];
+    const updated = applyIRQ(list, "1", 20000);
+    expect(updated[0].riskLabel).toBe("Muito Alto");
+    expect(updated[0].riskColor).toBe("#DC2626");
+  });
+
+  it("não altera outros marcadores ao aplicar IRQ", () => {
+    const list = [makeMarker({ id: "1" }), makeMarker({ id: "2" })];
+    const updated = applyIRQ(list, "1", 8000);
+    expect(updated[0].riskLabel).toBe("Alto");
+    expect(updated[1].irq).toBeNull();
+  });
+
+  it("preserva nome científico e foto ao aplicar IRQ", () => {
+    const list = [makeMarker({ id: "1", nomeCientifico: "Mangifera indica", fotoUri: "file:///mango.jpg" })];
+    const updated = applyIRQ(list, "1", 8000);
+    expect(updated[0].nomeCientifico).toBe("Mangifera indica");
+    expect(updated[0].fotoUri).toBe("file:///mango.jpg");
+  });
+
+  it("limite de risco em irq = 0 é Moderado", () => {
+    const list = [makeMarker({ id: "1" })];
+    const updated = applyIRQ(list, "1", 0);
+    expect(updated[0].riskLabel).toBe("Moderado");
+  });
+
+  it("limite de risco em irq = 5000 é Moderado", () => {
+    const list = [makeMarker({ id: "1" })];
+    const updated = applyIRQ(list, "1", 5000);
+    expect(updated[0].riskLabel).toBe("Moderado");
+  });
+
+  it("limite de risco em irq = 5001 é Alto", () => {
+    const list = [makeMarker({ id: "1" })];
+    const updated = applyIRQ(list, "1", 5001);
+    expect(updated[0].riskLabel).toBe("Alto");
+  });
+
+  it("limite de risco em irq = 15001 é Muito Alto", () => {
+    const list = [makeMarker({ id: "1" })];
+    const updated = applyIRQ(list, "1", 15001);
+    expect(updated[0].riskLabel).toBe("Muito Alto");
+    expect(updated[0].riskColor).toBe("#DC2626");
   });
 });
