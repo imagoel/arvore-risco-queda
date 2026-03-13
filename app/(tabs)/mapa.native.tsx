@@ -219,9 +219,9 @@ export default function MapaScreen() {
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.75,
+      allowsEditing: false,
+      quality: 1.0,
+      exif: false,
     });
     if (!result.canceled) {
       setModal((m) => ({ ...m, fotoUri: result.assets[0].uri }));
@@ -239,9 +239,9 @@ export default function MapaScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.75,
+      allowsEditing: false,
+      quality: 1.0,
+      exif: false,
     });
     if (!result.canceled) {
       setModal((m) => ({ ...m, fotoUri: result.assets[0].uri }));
