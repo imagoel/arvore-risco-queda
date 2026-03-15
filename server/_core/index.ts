@@ -71,9 +71,34 @@ async function startServer() {
       html = html.replace("__GMAPS_API_KEY__", gmapsKey);
       // Injeta a URL base da API para que o painel resolva caminhos relativos de fotos
       // Ex: /uploads/arvores/abc.jpg → https://3000-*.manus.computer/uploads/arvores/abc.jpg
-      const proto = req.headers["x-forwarded-proto"] ?? req.protocol;
-      const host = req.headers["x-forwarded-host"] ?? req.headers.host ?? "";
-      const apiBase = `${proto}://${host}`;
+      //
+      // Ordem de prioridade dos fallbacks:
+      // 1. x-forwarded-proto + x-forwarded-host (proxy reverso: Nginx, Manus, etc.)
+      // 2. req.protocol + req.headers.host     (acesso direto com header Host)
+      // 3. PUBLIC_URL env var                  (configurado manualmente em produção)
+      // 4. http://localhost:{port}              (dev local sem proxy, último recurso)
+      const forwardedProto = req.headers["x-forwarded-proto"];
+      const forwardedHost  = req.headers["x-forwarded-host"];
+      const directHost     = req.headers.host;
+      const envUrl         = process.env.PUBLIC_URL;
+
+      let apiBase: string;
+      if (forwardedProto && forwardedHost) {
+        // Cenário 1: atrás de proxy reverso (Nginx, Manus, Cloudflare, etc.)
+        const proto = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto;
+        const host  = Array.isArray(forwardedHost)  ? forwardedHost[0]  : forwardedHost;
+        apiBase = `${proto}://${host}`;
+      } else if (directHost) {
+        // Cenário 2: acesso direto (curl, dev local com header Host presente)
+        apiBase = `${req.protocol}://${directHost}`;
+      } else if (envUrl) {
+        // Cenário 3: variável de ambiente configurada manualmente
+        apiBase = envUrl.replace(/\/$/, ""); // remove trailing slash
+      } else {
+        // Cenário 4: último recurso — localhost com a porta atual
+        apiBase = `http://127.0.0.1:${port}`;
+      }
+
       html = html.replace("__APIBASE_PLACEHOLDER__", apiBase);
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.send(html);
