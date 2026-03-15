@@ -78,3 +78,5 @@
 - [x] Notificação local após sync bem-sucedido com expo-notifications (useNetworkSync)
 - [x] Solicitar permissão de notificação no app layout
 - [x] Notificação de falha parcial de sync com identifier fixo (anti-spam) e deep link para tela de mapa
+- [x] Bug: painel web exibe "Árvore sem nome" — corrigido: nomecientifico (lowercase) + irqClassificacao
+- [x] Bug: imagem não carrega no painel web — corrigido: window.__API_BASE__ injetado pelo servidor para resolver fotoUrl relativa

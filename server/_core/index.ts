@@ -62,13 +62,19 @@ async function startServer() {
   registerUploadRoutes(app);
 
   // Painel administrativo web
-  app.get("/painel", (_req, res) => {
+  app.get("/painel", (req, res) => {
     try {
       const htmlPath = path.resolve(__dirname, "../painel.html");
       let html = fs.readFileSync(htmlPath, "utf-8");
       // Injeta a chave da Google Maps API (se configurada)
       const gmapsKey = process.env.GOOGLE_MAPS_API_KEY ?? "";
       html = html.replace("__GMAPS_API_KEY__", gmapsKey);
+      // Injeta a URL base da API para que o painel resolva caminhos relativos de fotos
+      // Ex: /uploads/arvores/abc.jpg → https://3000-*.manus.computer/uploads/arvores/abc.jpg
+      const proto = req.headers["x-forwarded-proto"] ?? req.protocol;
+      const host = req.headers["x-forwarded-host"] ?? req.headers.host ?? "";
+      const apiBase = `${proto}://${host}`;
+      html = html.replace("__APIBASE_PLACEHOLDER__", apiBase);
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.send(html);
     } catch (err) {
