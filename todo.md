@@ -69,3 +69,5 @@
 - [x] G3: Rota /painel no servidor servindo o HTML do painel
 - [x] G3: Mapa web com pinos de árvores e polígonos de regiões
 - [x] G3: Tabela/lista de árvores com nível de risco e foto
+- [x] Integrar EXPO_PUBLIC_GOOGLE_MAPS_MOBILE_KEY no app mobile (react-native-maps)
+- [x] Validar chave mobile via teste de geocoding

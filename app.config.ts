@@ -26,7 +26,8 @@ const bundleId =
 const timestamp = bundleId.split(".").pop()?.replace(/^t/, "") ?? "";
 const schemeFromBundleId = `manus${timestamp}`;
 
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? "";
+const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? ""; // Painel web
+const GOOGLE_MAPS_MOBILE_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_MOBILE_KEY ?? ""; // App iOS/Android
 
 const env = {
   // App branding - update these values directly (do not use env vars)
@@ -53,7 +54,7 @@ const config: ExpoConfig = {
     supportsTablet: true,
     bundleIdentifier: env.iosBundleId,
     config: {
-      googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+      googleMapsApiKey: GOOGLE_MAPS_MOBILE_KEY,
     },
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
@@ -62,7 +63,7 @@ const config: ExpoConfig = {
   android: {
     config: {
       googleMaps: {
-        apiKey: GOOGLE_MAPS_API_KEY,
+        apiKey: GOOGLE_MAPS_MOBILE_KEY,
       },
     },
     adaptiveIcon: {
