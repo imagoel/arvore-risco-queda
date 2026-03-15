@@ -1,7 +1,7 @@
 /**
  * Serviço de sincronização entre o app mobile e o backend.
  * Envia árvores e regiões para o servidor via tRPC vanilla client.
- * Faz upload de fotos locais para o S3 antes de sincronizar.
+ * Faz upload de fotos locais para /api/upload (multer) antes de sincronizar.
  */
 import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
@@ -48,27 +48,35 @@ async function getVanillaClient() {
 }
 
 /**
- * Faz upload de uma foto local (URI) para o S3 via backend.
- * Retorna a URL pública da foto no S3, ou undefined em caso de erro.
+ * Faz upload de uma foto local (URI file:// ou content://) para o servidor
+ * via POST /api/upload usando multipart/form-data (multer).
+ * Retorna o caminho relativo no servidor (/uploads/arvores/abc.jpg) ou undefined.
  */
 async function uploadFoto(uri: string, pasta: "arvores" | "regioes"): Promise<string | undefined> {
   try {
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    const base64 = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        resolve(result.split(",")[1]);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
+    const baseUrl = getApiBaseUrl();
+    const formData = new FormData();
+
+    // React Native aceita { uri, name, type } como entrada do FormData
+    const filename = uri.split("/").pop() || `foto_${Date.now()}.jpg`;
+    const mimeType = filename.endsWith(".png") ? "image/png" : "image/jpeg";
+
+    // @ts-ignore — React Native FormData aceita objeto com uri/name/type
+    formData.append("foto", { uri, name: filename, type: mimeType });
+
+    const response = await fetch(`${baseUrl}/api/upload?pasta=${pasta}`, {
+      method: "POST",
+      body: formData,
+      credentials: "include",
     });
 
-    const mimeType = blob.type || "image/jpeg";
-    const client = await getVanillaClient();
-    const result = await client.upload.foto.mutate({ base64, mimeType, pasta });
-    return result.url;
+    if (!response.ok) {
+      console.warn("[Sync] Upload falhou com status:", response.status);
+      return undefined;
+    }
+
+    const data = await response.json() as { url: string };
+    return data.url;
   } catch (error) {
     console.warn("[Sync] Falha no upload da foto:", error);
     return undefined;
@@ -77,7 +85,7 @@ async function uploadFoto(uri: string, pasta: "arvores" | "regioes"): Promise<st
 
 /**
  * Sincroniza uma árvore com o servidor.
- * Se a árvore tiver foto local (file://), faz upload primeiro.
+ * Se a árvore tiver foto local (file:// ou content://), faz upload primeiro.
  */
 export async function sincronizarArvore(arvore: ArvoreLocal): Promise<boolean> {
   try {

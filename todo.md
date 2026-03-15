@@ -54,3 +54,8 @@
 - [x] Implementar upload de fotos no servidor via S3
 - [x] Integrar app mobile com backend (sincronização com fallback local)
 - [x] Indicador visual de sincronização no app (online/offline)
+- [x] Substituir S3 por multer: salvar fotos em /uploads local no servidor
+- [x] Implementar rota GET /uploads/:pasta/:filename para servir fotos locais
+- [x] Implementar rota GET /api/kmz para gerar e baixar arquivo .kmz
+- [x] Atualizar app mobile para usar nova rota de upload (multer FormData)
+- [ ] Detectar retorno de conexão automaticamente e disparar sync pendente

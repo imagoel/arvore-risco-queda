@@ -4,6 +4,8 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
+import { registerUploadRoutes } from "../upload-local";
+import { gerarKmz } from "../kmz";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 
@@ -55,6 +57,19 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
   registerOAuthRoutes(app);
+  registerUploadRoutes(app);
+
+  // Rota de exportação KMZ
+  app.get("/api/kmz", async (_req, res) => {
+    try {
+      await gerarKmz(res);
+    } catch (err) {
+      console.error("[kmz] erro ao gerar:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Erro ao gerar KMZ" });
+      }
+    }
+  });
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, timestamp: Date.now() });
