@@ -71,3 +71,4 @@
 - [x] G3: Tabela/lista de árvores com nível de risco e foto
 - [x] Integrar EXPO_PUBLIC_GOOGLE_MAPS_MOBILE_KEY no app mobile (react-native-maps)
 - [x] Validar chave mobile via teste de geocoding
+- [x] Corrigir aviso de performance do Google Maps: substituir script dinâmico por tag async estática

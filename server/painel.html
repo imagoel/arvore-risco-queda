@@ -4,8 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Painel Administrativo — Risco de Queda de Árvore</title>
-  <!-- Google Maps API key injected by server (must be first) -->
-  <script>window.__GMAPS_KEY__ = '__GMAPS_API_KEY__';</script>
+  <!-- Google Maps JS API — padrão recomendado (loading=async) -->
+  <script async
+    src="https://maps.googleapis.com/maps/api/js?key=__GMAPS_API_KEY__&callback=initMap&loading=async&language=pt-BR&region=BR"
+  ></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #F4F6F9; color: #1A2E22; }
@@ -599,15 +601,6 @@ window.initMap = function() {
   setInterval(fetchData, 60000);
 };
 
-// ── Load Google Maps ──────────────────────────────────────────────────────────
-(function loadGoogleMaps() {
-  const apiKey = window.__GMAPS_KEY__ || '';
-  const script = document.createElement('script');
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMap&language=pt-BR&region=BR`;
-  script.async = true;
-  script.defer = true;
-  document.head.appendChild(script);
-})();
 </script>
 
 </body>
