@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, arvores, regioes, InsertArvore, InsertRegiao } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,70 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// ─── ÁRVORES ────────────────────────────────────────────────────────────────
+
+export async function listarArvores() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(arvores).orderBy(arvores.createdAt);
+}
+
+export async function criarArvore(data: InsertArvore) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(arvores).values(data);
+  return result[0].insertId;
+}
+
+export async function atualizarArvore(localId: string, data: Partial<InsertArvore>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(arvores).set(data).where(eq(arvores.localId, localId));
+}
+
+export async function deletarArvore(localId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(arvores).where(eq(arvores.localId, localId));
+}
+
+export async function buscarArvore(localId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(arvores).where(eq(arvores.localId, localId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+// ─── REGIÕES ─────────────────────────────────────────────────────────────────
+
+export async function listarRegioes() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(regioes).orderBy(regioes.createdAt);
+}
+
+export async function criarRegiao(data: InsertRegiao) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(regioes).values(data);
+  return result[0].insertId;
+}
+
+export async function atualizarRegiao(localId: string, data: Partial<InsertRegiao>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(regioes).set(data).where(eq(regioes.localId, localId));
+}
+
+export async function deletarRegiao(localId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(regioes).where(eq(regioes.localId, localId));
+}
+
+export async function buscarRegiao(localId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(regioes).where(eq(regioes.localId, localId)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}

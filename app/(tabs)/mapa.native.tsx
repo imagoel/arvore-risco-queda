@@ -21,6 +21,7 @@ import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenContainer } from "@/components/screen-container";
 import { classifyRisk, formatIRQ, type RiskResult } from "@/lib/irq";
+import { sincronizarArvore, sincronizarRegiao, deletarArvoreRemota, deletarRegiaoRemota } from "@/lib/sync";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -204,6 +205,9 @@ export default function MapaScreen() {
   const [photoTarget, setPhotoTarget] = useState<"tree" | "region">("tree");
   const [photoPickerVisible, setPhotoPickerVisible] = useState(false);
 
+  // Sync status
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "ok" | "error">("idle");
+
   // IRQ
   const [irqModalVisible, setIrqModalVisible] = useState(false);
   const [irqMarkerId, setIrqMarkerId] = useState<string | null>(null);
@@ -326,30 +330,46 @@ export default function MapaScreen() {
       return;
     }
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    let savedMarker: TreeMarker;
     if (markerModal.editingId) {
       setMarkers((prev) =>
-        prev.map((m) =>
-          m.id === markerModal.editingId
-            ? { ...m, nomeCientifico: markerModal.nomeCientifico.trim(), descricao: markerModal.descricao.trim(), fotoUri: markerModal.fotoUri }
-            : m
-        )
+        prev.map((m) => {
+          if (m.id === markerModal.editingId) {
+            savedMarker = { ...m, nomeCientifico: markerModal.nomeCientifico.trim(), descricao: markerModal.descricao.trim(), fotoUri: markerModal.fotoUri };
+            return savedMarker;
+          }
+          return m;
+        })
       );
     } else {
-      setMarkers((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          latitude: markerModal.latitude,
-          longitude: markerModal.longitude,
-          nomeCientifico: markerModal.nomeCientifico.trim(),
-          descricao: markerModal.descricao.trim(),
-          fotoUri: markerModal.fotoUri,
-          criadoEm: new Date().toLocaleString("pt-BR"),
-          irq: null, riskLabel: null, riskColor: null,
-        },
-      ]);
+      savedMarker = {
+        id: Date.now().toString(),
+        latitude: markerModal.latitude,
+        longitude: markerModal.longitude,
+        nomeCientifico: markerModal.nomeCientifico.trim(),
+        descricao: markerModal.descricao.trim(),
+        fotoUri: markerModal.fotoUri,
+        criadoEm: new Date().toLocaleString("pt-BR"),
+        irq: null, riskLabel: null, riskColor: null,
+      };
+      setMarkers((prev) => [...prev, savedMarker]);
     }
     setMarkerModal((m) => ({ ...m, visible: false }));
+
+    // Sincronizar com backend em background
+    setSyncStatus("syncing");
+    sincronizarArvore({
+      id: savedMarker!.id,
+      nomeCientifico: savedMarker!.nomeCientifico,
+      descricao: savedMarker!.descricao,
+      fotoUri: savedMarker!.fotoUri ?? undefined,
+      latitude: savedMarker!.latitude,
+      longitude: savedMarker!.longitude,
+      irqValor: savedMarker!.irq ?? undefined,
+      irqClassificacao: savedMarker!.riskLabel ?? undefined,
+      pinColor: savedMarker!.riskColor ?? undefined,
+    }).then((ok) => setSyncStatus(ok ? "ok" : "error")).catch(() => setSyncStatus("error"));
   }, [markerModal]);
 
   const handleEditMarker = useCallback((marker: TreeMarker) => {
@@ -364,6 +384,8 @@ export default function MapaScreen() {
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         setMarkers((prev) => prev.filter((m) => m.id !== id));
         setSelectedMarker(null);
+        // Remover do backend em background
+        deletarArvoreRemota(id).catch(() => {});
       }},
     ]);
   }, []);
@@ -412,18 +434,25 @@ export default function MapaScreen() {
         )
       );
     } else {
-      setRegions((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          coordinates: drawingCoords,
-          titulo: regionModal.titulo.trim(),
-          descricao: regionModal.descricao.trim(),
-          fotoUri: regionModal.fotoUri,
-          criadoEm: new Date().toLocaleString("pt-BR"),
-        },
-      ]);
+      const newRegion: RegionPolygon = {
+        id: Date.now().toString(),
+        coordinates: drawingCoords,
+        titulo: regionModal.titulo.trim(),
+        descricao: regionModal.descricao.trim(),
+        fotoUri: regionModal.fotoUri,
+        criadoEm: new Date().toLocaleString("pt-BR"),
+      };
+      setRegions((prev) => [...prev, newRegion]);
       setDrawingCoords([]);
+      // Sincronizar nova região com backend
+      setSyncStatus("syncing");
+      sincronizarRegiao({
+        id: newRegion.id,
+        titulo: newRegion.titulo,
+        descricao: newRegion.descricao,
+        fotoUri: newRegion.fotoUri ?? undefined,
+        coordenadas: newRegion.coordinates,
+      }).then((ok) => setSyncStatus(ok ? "ok" : "error")).catch(() => setSyncStatus("error"));
     }
     setRegionModal((m) => ({ ...m, visible: false }));
   }, [regionModal, drawingCoords]);
@@ -447,6 +476,8 @@ export default function MapaScreen() {
         if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         setRegions((prev) => prev.filter((r) => r.id !== id));
         setSelectedRegion(null);
+        // Remover do backend em background
+        deletarRegiaoRemota(id).catch(() => {});
       }},
     ]);
   }, []);
@@ -470,16 +501,35 @@ export default function MapaScreen() {
 
   const handleSaveIRQ = useCallback(() => {
     if (!irqResult) { Alert.alert("Calcule primeiro", "Pressione 'Calcular' antes de salvar."); return; }
+    let updatedMarker: TreeMarker | undefined;
     setMarkers((prev) =>
-      prev.map((m) =>
-        m.id === irqMarkerId
-          ? { ...m, irq: irqResult.index, riskLabel: irqResult.label, riskColor: irqResult.pinColor }
-          : m
-      )
+      prev.map((m) => {
+        if (m.id === irqMarkerId) {
+          updatedMarker = { ...m, irq: irqResult.index, riskLabel: irqResult.label, riskColor: irqResult.pinColor };
+          return updatedMarker;
+        }
+        return m;
+      })
     );
     setIrqModalVisible(false);
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [irqResult, irqMarkerId]);
+    // Sincronizar IRQ atualizado com backend
+    if (updatedMarker) {
+      setSyncStatus("syncing");
+      sincronizarArvore({
+        id: updatedMarker.id,
+        nomeCientifico: updatedMarker.nomeCientifico,
+        descricao: updatedMarker.descricao,
+        fotoUri: updatedMarker.fotoUri ?? undefined,
+        latitude: updatedMarker.latitude,
+        longitude: updatedMarker.longitude,
+        irqValor: irqResult.index,
+        irqClassificacao: irqResult.label,
+        irqParametros: JSON.stringify(irqForm),
+        pinColor: irqResult.pinColor,
+      }).then((ok) => setSyncStatus(ok ? "ok" : "error")).catch(() => setSyncStatus("error"));
+    }
+  }, [irqResult, irqMarkerId, irqForm]);
 
   // ── Center ──────────────────────────────────────────────────────────────────
   const handleCenterUser = useCallback(() => {
@@ -578,6 +628,16 @@ export default function MapaScreen() {
             </Marker>
           ))}
         </MapView>
+
+        {/* Sync status indicator */}
+        {syncStatus !== "idle" && (
+          <View style={[styles.syncBadge, syncStatus === "ok" && { backgroundColor: "rgba(22,163,74,0.92)" }, syncStatus === "error" && { backgroundColor: "rgba(220,38,38,0.92)" }]}>
+            {syncStatus === "syncing" && <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 6 }} />}
+            <Text style={styles.syncBadgeText}>
+              {syncStatus === "syncing" ? "Sincronizando..." : syncStatus === "ok" ? "✓ Sincronizado" : "⚠ Sem conexão (salvo localmente)"}
+            </Text>
+          </View>
+        )}
 
         {/* Loading overlay */}
         {loadingLocation && (
@@ -1167,4 +1227,6 @@ const styles = StyleSheet.create({
   pickerDivider: { height: 1, backgroundColor: "#EEEEEE" },
   pickerCancelBtn: { marginTop: 20, height: 52, borderRadius: 50, borderWidth: 1.5, borderColor: "#CCCCCC", alignItems: "center", justifyContent: "center" },
   pickerCancelText: { color: "#666666", fontSize: 16, fontWeight: "500" },
+  syncBadge: { position: "absolute", top: 12, alignSelf: "center", flexDirection: "row", alignItems: "center", backgroundColor: "rgba(91,46,190,0.92)", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, zIndex: 30 },
+  syncBadgeText: { color: "#FFFFFF", fontSize: 13, fontWeight: "600" },
 });

@@ -1,0 +1,171 @@
+/**
+ * Serviço de sincronização entre o app mobile e o backend.
+ * Envia árvores e regiões para o servidor via tRPC vanilla client.
+ * Faz upload de fotos locais para o S3 antes de sincronizar.
+ */
+import { createTRPCClient, httpBatchLink } from "@trpc/client";
+import superjson from "superjson";
+import type { AppRouter } from "@/server/routers";
+import { getApiBaseUrl } from "@/constants/oauth";
+import * as Auth from "@/lib/_core/auth";
+
+export interface ArvoreLocal {
+  id: string;
+  nomeCientifico?: string;
+  descricao?: string;
+  fotoUri?: string;
+  latitude: number;
+  longitude: number;
+  irqValor?: number;
+  irqClassificacao?: string;
+  irqParametros?: string;
+  pinColor?: string;
+}
+
+export interface RegiaoLocal {
+  id: string;
+  titulo: string;
+  descricao?: string;
+  fotoUri?: string;
+  coordenadas: Array<{ latitude: number; longitude: number }>;
+}
+
+/** Cria um vanilla tRPC client para uso fora de componentes React */
+async function getVanillaClient() {
+  const token = await Auth.getSessionToken();
+  return createTRPCClient<AppRouter>({
+    links: [
+      httpBatchLink({
+        url: `${getApiBaseUrl()}/api/trpc`,
+        transformer: superjson,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        fetch(url, options) {
+          return fetch(url, { ...options, credentials: "include" });
+        },
+      }),
+    ],
+  });
+}
+
+/**
+ * Faz upload de uma foto local (URI) para o S3 via backend.
+ * Retorna a URL pública da foto no S3, ou undefined em caso de erro.
+ */
+async function uploadFoto(uri: string, pasta: "arvores" | "regioes"): Promise<string | undefined> {
+  try {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        resolve(result.split(",")[1]);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+
+    const mimeType = blob.type || "image/jpeg";
+    const client = await getVanillaClient();
+    const result = await client.upload.foto.mutate({ base64, mimeType, pasta });
+    return result.url;
+  } catch (error) {
+    console.warn("[Sync] Falha no upload da foto:", error);
+    return undefined;
+  }
+}
+
+/**
+ * Sincroniza uma árvore com o servidor.
+ * Se a árvore tiver foto local (file://), faz upload primeiro.
+ */
+export async function sincronizarArvore(arvore: ArvoreLocal): Promise<boolean> {
+  try {
+    let fotoUrl = arvore.fotoUri;
+
+    if (fotoUrl && (fotoUrl.startsWith("file://") || fotoUrl.startsWith("content://"))) {
+      const urlRemota = await uploadFoto(fotoUrl, "arvores");
+      if (urlRemota) fotoUrl = urlRemota;
+    }
+
+    const client = await getVanillaClient();
+    await client.arvores.sincronizar.mutate({
+      localId: arvore.id,
+      nomeCientifico: arvore.nomeCientifico,
+      descricao: arvore.descricao,
+      fotoUrl,
+      latitude: arvore.latitude,
+      longitude: arvore.longitude,
+      irqValor: arvore.irqValor,
+      irqClassificacao: arvore.irqClassificacao,
+      irqParametros: arvore.irqParametros,
+      pinColor: arvore.pinColor,
+    });
+
+    return true;
+  } catch (error) {
+    console.warn("[Sync] Falha ao sincronizar árvore:", error);
+    return false;
+  }
+}
+
+/**
+ * Sincroniza uma região com o servidor.
+ */
+export async function sincronizarRegiao(regiao: RegiaoLocal): Promise<boolean> {
+  try {
+    let fotoUrl = regiao.fotoUri;
+
+    if (fotoUrl && (fotoUrl.startsWith("file://") || fotoUrl.startsWith("content://"))) {
+      const urlRemota = await uploadFoto(fotoUrl, "regioes");
+      if (urlRemota) fotoUrl = urlRemota;
+    }
+
+    const centroLat = regiao.coordenadas.reduce((s, c) => s + c.latitude, 0) / regiao.coordenadas.length;
+    const centroLng = regiao.coordenadas.reduce((s, c) => s + c.longitude, 0) / regiao.coordenadas.length;
+
+    const client = await getVanillaClient();
+    await client.regioes.sincronizar.mutate({
+      localId: regiao.id,
+      titulo: regiao.titulo,
+      descricao: regiao.descricao,
+      fotoUrl,
+      coordenadas: JSON.stringify(regiao.coordenadas),
+      centroLat,
+      centroLng,
+    });
+
+    return true;
+  } catch (error) {
+    console.warn("[Sync] Falha ao sincronizar região:", error);
+    return false;
+  }
+}
+
+/**
+ * Remove uma árvore do servidor.
+ */
+export async function deletarArvoreRemota(localId: string): Promise<boolean> {
+  try {
+    const client = await getVanillaClient();
+    await client.arvores.deletar.mutate({ localId });
+    return true;
+  } catch (error) {
+    console.warn("[Sync] Falha ao deletar árvore remota:", error);
+    return false;
+  }
+}
+
+/**
+ * Remove uma região do servidor.
+ */
+export async function deletarRegiaoRemota(localId: string): Promise<boolean> {
+  try {
+    const client = await getVanillaClient();
+    await client.regioes.deletar.mutate({ localId });
+    return true;
+  } catch (error) {
+    console.warn("[Sync] Falha ao deletar região remota:", error);
+    return false;
+  }
+}

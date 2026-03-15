@@ -48,3 +48,9 @@
 - [x] Modal de cadastro de região: Título, Descrição e Foto (igual ao de árvore)
 - [x] Clicar no polígono abre painel de detalhes com opções de editar e remover
 - [x] Persistir polígonos no AsyncStorage junto com os marcadores
+- [x] Criar tabelas de árvores e regiões no banco (MySQL + Drizzle ORM)
+- [x] Implementar API REST: CRUD de árvores (com coordenadas e foto) via tRPC
+- [x] Implementar API REST: CRUD de regiões/polígonos (com coordenadas e foto) via tRPC
+- [x] Implementar upload de fotos no servidor via S3
+- [x] Integrar app mobile com backend (sincronização com fallback local)
+- [x] Indicador visual de sincronização no app (online/offline)
