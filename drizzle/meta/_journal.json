@@ -15,6 +15,13 @@
       "when": 1773584456047,
       "tag": "0001_petite_wrecker",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1773588435432,
+      "tag": "0002_white_owl",
+      "breakpoints": true
     }
   ]
 }

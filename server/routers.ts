@@ -38,12 +38,18 @@ const arvoreInputSchema = z.object({
   pinColor: z.string().optional(),
 });
 
+const coordenadaArraySchema = z.array(z.object({
+  latitude: z.number(),
+  longitude: z.number(),
+}));
+
 const regiaoInputSchema = z.object({
   localId: z.string(),
   titulo: z.string(),
   descricao: z.string().optional(),
   fotoUrl: z.string().optional(),
-  coordenadas: z.string(), // JSON serializado
+  /** Array de coordenadas (JSON nativo no MySQL) */
+  coordenadas: coordenadaArraySchema,
   centroLat: z.number().optional(),
   centroLng: z.number().optional(),
 });

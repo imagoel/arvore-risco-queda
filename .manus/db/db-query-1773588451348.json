@@ -1,0 +1,18 @@
+{
+  "query": "SHOW COLUMNS FROM regioes LIKE 'coordenadas';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4RtGgCShHbxk5qV.root --database THps8jiAfWDRzfKXG2S5Rn --execute SHOW COLUMNS FROM regioes LIKE 'coordenadas';",
+  "rows": [
+    {
+      "Field": "coordenadas",
+      "Type": "json",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\ncoordenadas\tjson\tNO\t\tNULL\t\n",
+  "stderr": "",
+  "execution_time_ms": 55
+}

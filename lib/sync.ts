@@ -138,7 +138,7 @@ export async function sincronizarRegiao(regiao: RegiaoLocal): Promise<boolean> {
       titulo: regiao.titulo,
       descricao: regiao.descricao,
       fotoUrl,
-      coordenadas: JSON.stringify(regiao.coordenadas),
+      coordenadas: regiao.coordenadas,
       centroLat,
       centroLng,
     });

@@ -1,0 +1,1 @@
+ALTER TABLE `regioes` MODIFY COLUMN `coordenadas` json NOT NULL;

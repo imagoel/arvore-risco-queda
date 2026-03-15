@@ -1,4 +1,4 @@
-import { boolean, decimal, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { boolean, decimal, int, json, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -60,10 +60,11 @@ export const regioes = mysqlTable("regioes", {
   /** URL da foto no S3 */
   fotoUrl: text("fotoUrl"),
   /**
-   * Coordenadas dos vértices do polígono em JSON.
+   * Coordenadas dos vértices do polígono em JSON nativo do MySQL.
    * Formato: [{ latitude: number, longitude: number }, ...]
+   * Usando json() para aproveitar validação e indexação JSON nativa do MySQL 8.0.
    */
-  coordenadas: text("coordenadas").notNull(),
+  coordenadas: json("coordenadas").$type<Array<{ latitude: number; longitude: number }>>().notNull(),
   /** Latitude do centróide (para referência) */
   centroLat: decimal("centroLat", { precision: 10, scale: 7 }),
   /** Longitude do centróide (para referência) */

@@ -98,7 +98,10 @@ export async function gerarKmz(res: Response): Promise<void> {
 
     let coordsKml = "";
     try {
-      const coords: Array<{ latitude: number; longitude: number }> = JSON.parse(r.coordenadas || "[]");
+      // coordenadas é JSON nativo do MySQL: já retorna como array de objetos
+      const coords: Array<{ latitude: number; longitude: number }> = Array.isArray(r.coordenadas)
+        ? r.coordenadas
+        : JSON.parse(String(r.coordenadas || "[]"));
       coordsKml = coords.map((c) => `${c.longitude},${c.latitude},0`).join(" ");
       // Fecha o polígono repetindo o primeiro ponto
       if (coords.length > 0) {

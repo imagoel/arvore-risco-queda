@@ -1,0 +1,9 @@
+{
+  "query": "SELECT id, localId, titulo, JSON_TYPE(coordenadas) as tipo_json, JSON_LENGTH(coordenadas) as num_pontos FROM regioes LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4RtGgCShHbxk5qV.root --database THps8jiAfWDRzfKXG2S5Rn --execute SELECT id, localId, titulo, JSON_TYPE(coordenadas) as tipo_json, JSON_LENGTH(coordenadas) as num_pontos FROM regioes LIMIT 10;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 57
+}

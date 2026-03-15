@@ -63,3 +63,4 @@
 - [x] Criar fila de sincronização pendente no AsyncStorage
 - [x] Disparar sync automático ao detectar retorno de conexão
 - [x] Exibir indicador de itens pendentes no mapa
+- [x] Corrigir coluna coordenadas de TEXT para JSON nativo no MySQL (schema + migration + servidor)
