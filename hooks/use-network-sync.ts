@@ -11,7 +11,7 @@ import { useEffect, useRef, useCallback } from "react";
 import * as Network from "expo-network";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { sincronizarArvore, sincronizarRegiao, type ArvoreLocal, type RegiaoLocal } from "@/lib/sync";
-import { notificarSyncConcluido } from "@/lib/notifications";
+import { notificarSyncConcluido, notificarSyncParcial } from "@/lib/notifications";
 
 // Chaves de storage compartilhadas com mapa.native.tsx
 const STORAGE_KEY = "@arvore_marcadores_v3";
@@ -247,9 +247,15 @@ export function useNetworkSync({ onStatusChange, onPendingCountChange }: UseNetw
         }
       }
 
-      // Notificar o usuário apenas se pelo menos um item foi sincronizado com sucesso
-      if (syncedTrees > 0 || syncedRegions > 0) {
+      const totalSynced = syncedTrees + syncedRegions;
+      const totalAttempted = pendingTreeIds.length + pendingRegionIds.length;
+
+      if (allOk && totalSynced > 0) {
+        // Sucesso total: notificação discreta de confirmação
         await notificarSyncConcluido(syncedTrees, syncedRegions);
+      } else if (!allOk && totalSynced > 0) {
+        // Falha parcial: alerta com identifier fixo (anti-spam) e deep link para o mapa
+        await notificarSyncParcial(totalSynced, totalAttempted);
       }
 
       notifyStatus(allOk ? "ok" : "error");

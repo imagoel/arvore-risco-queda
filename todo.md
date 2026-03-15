@@ -77,3 +77,4 @@
 - [x] G1: deleteAsync com idempotent:true após response.ok no upload de foto (lib/sync.ts)
 - [x] Notificação local após sync bem-sucedido com expo-notifications (useNetworkSync)
 - [x] Solicitar permissão de notificação no app layout
+- [x] Notificação de falha parcial de sync com identifier fixo (anti-spam) e deep link para tela de mapa

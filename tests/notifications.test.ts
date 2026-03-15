@@ -119,6 +119,160 @@ describe("Condições de disparo da notificação", () => {
   });
 });
 
+// ─── Lógica pura de notificarSyncParcial ─────────────────────────────────────
+
+/**
+ * Espelha a lógica de disparo de notificarSyncParcial em lib/notifications.ts.
+ * Retorna o corpo da mensagem ou null se não deve disparar.
+ */
+function buildPartialSyncBody(
+  successCount: number,
+  totalCount: number,
+  permissionGranted: boolean
+): string | null {
+  if (successCount <= 0) return null;         // nenhum sucesso
+  if (successCount >= totalCount) return null; // sucesso total (não é parcial)
+  if (!permissionGranted) return null;         // sem permissão
+  return `${successCount} de ${totalCount} itens foram enviados. Conecte-se a uma rede estável para sincronizar o restante.`;
+}
+
+/**
+ * Simula a lógica condicional do useNetworkSync para escolher qual notificação disparar.
+ */
+function chooseNotification(
+  allOk: boolean,
+  totalSynced: number,
+  totalAttempted: number
+): "success" | "partial" | "none" {
+  if (allOk && totalSynced > 0) return "success";
+  if (!allOk && totalSynced > 0) return "partial";
+  return "none";
+}
+
+// ─── Testes de notificarSyncParcial ──────────────────────────────────────────
+
+describe("Lógica de notificarSyncParcial", () => {
+  it("NÃO dispara quando successCount = 0 (nenhum sucesso)", () => {
+    expect(buildPartialSyncBody(0, 5, true)).toBeNull();
+  });
+
+  it("NÃO dispara quando successCount = totalCount (sucesso total)", () => {
+    expect(buildPartialSyncBody(5, 5, true)).toBeNull();
+  });
+
+  it("NÃO dispara quando permissão negada", () => {
+    expect(buildPartialSyncBody(3, 5, false)).toBeNull();
+  });
+
+  it("DISPARA quando há sucesso parcial com permissão", () => {
+    const body = buildPartialSyncBody(2, 5, true);
+    expect(body).not.toBeNull();
+  });
+
+  it("formata a mensagem corretamente com os contadores", () => {
+    const body = buildPartialSyncBody(3, 7, true);
+    expect(body).toBe("3 de 7 itens foram enviados. Conecte-se a uma rede estável para sincronizar o restante.");
+  });
+
+  it("formata corretamente com 1 de 2 itens", () => {
+    const body = buildPartialSyncBody(1, 2, true);
+    expect(body).toBe("1 de 2 itens foram enviados. Conecte-se a uma rede estável para sincronizar o restante.");
+  });
+
+  it("NÃO dispara quando successCount > totalCount (caso de borda)", () => {
+    expect(buildPartialSyncBody(6, 5, true)).toBeNull();
+  });
+});
+
+// ─── Testes da lógica condicional do useNetworkSync ──────────────────────────
+
+describe("Lógica condicional de escolha de notificação no useNetworkSync", () => {
+  it("retorna 'success' quando allOk=true e totalSynced > 0", () => {
+    expect(chooseNotification(true, 5, 5)).toBe("success");
+  });
+
+  it("retorna 'partial' quando allOk=false e totalSynced > 0", () => {
+    expect(chooseNotification(false, 3, 5)).toBe("partial");
+  });
+
+  it("retorna 'none' quando allOk=true mas totalSynced = 0", () => {
+    expect(chooseNotification(true, 0, 0)).toBe("none");
+  });
+
+  it("retorna 'none' quando allOk=false e totalSynced = 0 (falha total sem nenhum sucesso)", () => {
+    expect(chooseNotification(false, 0, 5)).toBe("none");
+  });
+
+  it("retorna 'success' quando todos os 1 item foi sincronizado", () => {
+    expect(chooseNotification(true, 1, 1)).toBe("success");
+  });
+
+  it("retorna 'partial' quando apenas 1 de 10 itens foi sincronizado", () => {
+    expect(chooseNotification(false, 1, 10)).toBe("partial");
+  });
+});
+
+// ─── Testes de anti-spam (identifier fixo) ───────────────────────────────────
+
+describe("Anti-spam: identifier fixo da notificação parcial", () => {
+  const mockSchedule = vi.fn().mockResolvedValue(undefined);
+  const mockDismiss = vi.fn().mockResolvedValue(undefined);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("usa identifier fixo 'sync-partial' para sobrescrever notificações anteriores", async () => {
+    // Simula duas chamadas consecutivas de notificarSyncParcial
+    for (let i = 0; i < 2; i++) {
+      await mockDismiss("sync-partial").catch(() => {});
+      await mockSchedule({
+        identifier: "sync-partial",
+        content: { title: "⚠️ Sincronização Pendente", body: "2 de 5 itens foram enviados." },
+        trigger: null,
+      });
+    }
+
+    // Deve ter chamado schedule 2 vezes (sobrescreve, não acumula)
+    expect(mockSchedule).toHaveBeenCalledTimes(2);
+    // Ambas as chamadas usam o mesmo identifier
+    expect(mockSchedule).toHaveBeenCalledWith(
+      expect.objectContaining({ identifier: "sync-partial" })
+    );
+  });
+
+  it("dismiss é chamado antes de schedule para garantir sobrescrita", async () => {
+    const callOrder: string[] = [];
+    const orderedDismiss = vi.fn().mockImplementation(async () => { callOrder.push("dismiss"); });
+    const orderedSchedule = vi.fn().mockImplementation(async () => { callOrder.push("schedule"); });
+
+    await orderedDismiss("sync-partial").catch(() => {});
+    await orderedSchedule({ identifier: "sync-partial", content: {}, trigger: null });
+
+    expect(callOrder).toEqual(["dismiss", "schedule"]);
+  });
+
+  it("notificação de falha parcial contém deep link para a tela do mapa", async () => {
+    await mockSchedule({
+      identifier: "sync-partial",
+      content: {
+        title: "⚠️ Sincronização Pendente",
+        body: "2 de 5 itens foram enviados.",
+        data: { url: "/(tabs)/mapa" },
+      },
+      trigger: null,
+    });
+
+    expect(mockSchedule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.objectContaining({
+          data: expect.objectContaining({ url: "/(tabs)/mapa" }),
+        }),
+      })
+    );
+  });
+});
+
 // ─── Testes de integração com mock do expo-notifications ─────────────────────
 
 describe("Integração com expo-notifications (mockado)", () => {

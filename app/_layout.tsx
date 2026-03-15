@@ -8,6 +8,8 @@ import "react-native-reanimated";
 import { Platform } from "react-native";
 import "@/lib/_core/nativewind-pressable";
 import { ThemeProvider } from "@/lib/theme-provider";
+import * as Notifications from "expo-notifications";
+import { router } from "expo-router";
 import {
   setupNotificationHandler,
   setupAndroidSyncChannel,
@@ -55,6 +57,19 @@ export default function RootLayout() {
       await requestNotificationPermission();
     };
     setupNotifications();
+  }, []);
+
+  // Listener de toque em notificações: navega para a tela indicada no campo data.url
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const url = response.notification.request.content.data?.url as string | undefined;
+      if (url) {
+        // Usa replace para não empilhar a tela na pilha de navegação
+        router.replace(url as Parameters<typeof router.replace>[0]);
+      }
+    });
+    return () => subscription.remove();
   }, []);
 
   const handleSafeAreaUpdate = useCallback((metrics: Metrics) => {
