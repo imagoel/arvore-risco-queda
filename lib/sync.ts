@@ -5,6 +5,7 @@
  */
 import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
+import * as FileSystem from "expo-file-system/legacy";
 import type { AppRouter } from "@/server/routers";
 import { getApiBaseUrl } from "@/constants/oauth";
 import * as Auth from "@/lib/_core/auth";
@@ -76,6 +77,17 @@ async function uploadFoto(uri: string, pasta: "arvores" | "regioes"): Promise<st
     }
 
     const data = await response.json() as { url: string };
+
+    // G1: Apaga o arquivo local somente após confirmação absoluta de sucesso (response.ok).
+    // idempotent:true evita crash caso o arquivo já tenha sido removido por outro processo.
+    try {
+      await FileSystem.deleteAsync(uri, { idempotent: true });
+      console.log("[Sync] Foto local removida após upload bem-sucedido:", uri);
+    } catch (deleteError) {
+      // Falha silenciosa — o upload já foi confirmado; a limpeza é best-effort.
+      console.warn("[Sync] Não foi possível remover foto local:", deleteError);
+    }
+
     return data.url;
   } catch (error) {
     console.warn("[Sync] Falha no upload da foto:", error);

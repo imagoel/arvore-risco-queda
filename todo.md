@@ -74,3 +74,4 @@
 - [x] Corrigir aviso de performance do Google Maps: substituir script dinâmico por tag async estática
 - [x] Refatorar painel.html: new google.maps.Map chamado apenas uma vez (initMap), fetchData só atualiza marcadores/polígonos
 - [x] Eliminar flickering: usar setMap(null) nos overlays antigos antes de redesenhar
+- [x] G1: deleteAsync com idempotent:true após response.ok no upload de foto (lib/sync.ts)
