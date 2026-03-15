@@ -64,3 +64,8 @@
 - [x] Disparar sync automático ao detectar retorno de conexão
 - [x] Exibir indicador de itens pendentes no mapa
 - [x] Corrigir coluna coordenadas de TEXT para JSON nativo no MySQL (schema + migration + servidor)
+- [x] G2: Botão "Exportar KMZ" no mapa mobile (chama GET /api/kmz + expo-sharing)
+- [x] G3: Painel web administrativo em React com Google Maps JS API
+- [x] G3: Rota /painel no servidor servindo o HTML do painel
+- [x] G3: Mapa web com pinos de árvores e polígonos de regiões
+- [x] G3: Tabela/lista de árvores com nível de risco e foto

@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel Administrativo — Risco de Queda de Árvore</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #F4F6F9; color: #1A2E22; }
+
+    /* ── Header ── */
+    header {
+      background: #1A2E22;
+      color: #fff;
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    header h1 { font-size: 17px; font-weight: 700; letter-spacing: 0.3px; }
+    header span { font-size: 13px; opacity: 0.65; }
+    .header-actions { display: flex; gap: 10px; align-items: center; }
+    .btn-kmz {
+      background: #5B2EBE;
+      color: #fff;
+      border: none;
+      border-radius: 20px;
+      padding: 8px 18px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.15s;
+    }
+    .btn-kmz:hover { opacity: 0.85; }
+
+    /* ── Layout ── */
+    .layout {
+      display: flex;
+      height: 100vh;
+      padding-top: 60px;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 360px;
+      min-width: 300px;
+      background: #fff;
+      border-right: 1px solid #E5E7EB;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .sidebar-tabs {
+      display: flex;
+      border-bottom: 1px solid #E5E7EB;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 14px 8px;
+      font-size: 13px;
+      font-weight: 600;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #888;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .tab-btn.active { color: #1A2E22; border-bottom-color: #5B2EBE; }
+    .sidebar-content { flex: 1; overflow-y: auto; padding: 12px; }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      display: flex;
+      gap: 8px;
+      padding: 12px;
+      border-bottom: 1px solid #E5E7EB;
+      background: #F9FAFB;
+    }
+    .stat-chip {
+      flex: 1;
+      background: #fff;
+      border: 1px solid #E5E7EB;
+      border-radius: 10px;
+      padding: 8px 10px;
+      text-align: center;
+    }
+    .stat-chip .stat-num { font-size: 20px; font-weight: 800; color: #1A2E22; }
+    .stat-chip .stat-label { font-size: 11px; color: #888; margin-top: 2px; }
+
+    /* ── Cards ── */
+    .card {
+      background: #fff;
+      border: 1px solid #E5E7EB;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: box-shadow 0.15s, border-color 0.15s;
+    }
+    .card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-color: #5B2EBE44; }
+    .card.selected { border-color: #5B2EBE; box-shadow: 0 0 0 2px #5B2EBE33; }
+    .card-header { display: flex; align-items: flex-start; gap: 10px; }
+    .card-icon { width: 36px; height: 36px; border-radius: 18px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .card-title { font-size: 14px; font-weight: 700; color: #1A2E22; font-style: italic; line-height: 1.3; }
+    .card-sub { font-size: 12px; color: #888; margin-top: 2px; }
+    .risk-pill {
+      display: inline-block;
+      border-radius: 100px;
+      padding: 2px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      margin-top: 6px;
+    }
+    .card-coords { font-size: 11px; color: #AAAAAA; font-family: monospace; margin-top: 4px; }
+    .card-photo { width: 100%; height: 100px; object-fit: cover; border-radius: 8px; margin-top: 8px; }
+
+    /* ── Region card ── */
+    .region-card-title { font-size: 14px; font-weight: 700; color: #1A2E22; }
+    .region-card-sub { font-size: 12px; color: #888; margin-top: 2px; }
+    .region-badge { display: inline-block; background: #5B2EBE22; color: #5B2EBE; border-radius: 100px; padding: 2px 10px; font-size: 11px; font-weight: 700; margin-top: 6px; }
+
+    /* ── Map ── */
+    #map { flex: 1; }
+
+    /* ── Loading / empty ── */
+    .loading { text-align: center; padding: 40px 20px; color: #888; font-size: 14px; }
+    .empty { text-align: center; padding: 40px 20px; color: #AAAAAA; font-size: 14px; }
+    .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid #E5E7EB; border-top-color: #5B2EBE; border-radius: 50%; animation: spin 0.7s linear infinite; margin-bottom: 10px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Filter bar ── */
+    .filter-bar { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid #E5E7EB; background: #F9FAFB; }
+    .filter-chip {
+      padding: 4px 12px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1.5px solid #E5E7EB;
+      background: #fff;
+      cursor: pointer;
+      color: #555;
+      transition: all 0.12s;
+    }
+    .filter-chip.active { background: #1A2E22; color: #fff; border-color: #1A2E22; }
+
+    /* ── Info window override ── */
+    .gm-style .gm-style-iw-c { border-radius: 12px !important; padding: 0 !important; }
+    .gm-style .gm-style-iw-d { overflow: hidden !important; }
+    .info-window { padding: 14px; max-width: 260px; font-family: -apple-system, sans-serif; }
+    .info-window h3 { font-size: 15px; font-weight: 700; color: #1A2E22; font-style: italic; margin-bottom: 4px; }
+    .info-window p { font-size: 13px; color: #555; line-height: 1.5; margin-bottom: 4px; }
+    .info-window img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 8px; }
+    .info-window .coords { font-size: 11px; color: #AAAAAA; font-family: monospace; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span style="font-size:22px;">🌳</span>
+    <div>
+      <h1>Painel Administrativo</h1>
+      <span>Índice de Risco de Queda de Árvore</span>
+    </div>
+  </div>
+  <div class="header-actions">
+    <span id="last-update" style="font-size:12px;opacity:0.5;"></span>
+    <a id="btn-kmz" class="btn-kmz" href="/api/kmz" download>
+      ⬇ Baixar KMZ
+    </a>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <!-- Stats -->
+    <div class="stats-bar">
+      <div class="stat-chip">
+        <div class="stat-num" id="stat-trees">—</div>
+        <div class="stat-label">Árvores</div>
+      </div>
+      <div class="stat-chip">
+        <div class="stat-num" id="stat-regions">—</div>
+        <div class="stat-label">Regiões</div>
+      </div>
+      <div class="stat-chip">
+        <div class="stat-num" id="stat-high-risk">—</div>
+        <div class="stat-label">Alto Risco</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="sidebar-tabs">
+      <button class="tab-btn active" id="tab-trees" onclick="switchTab('trees')">🌳 Árvores</button>
+      <button class="tab-btn" id="tab-regions" onclick="switchTab('regions')">⬡ Regiões</button>
+    </div>
+
+    <!-- Filter bar (trees only) -->
+    <div class="filter-bar" id="filter-bar">
+      <button class="filter-chip active" onclick="setFilter('all', this)">Todos</button>
+      <button class="filter-chip" onclick="setFilter('Baixo', this)" style="border-color:#16A34A;color:#16A34A;">Baixo</button>
+      <button class="filter-chip" onclick="setFilter('Moderado', this)" style="border-color:#CA8A04;color:#CA8A04;">Moderado</button>
+      <button class="filter-chip" onclick="setFilter('Alto', this)" style="border-color:#EA580C;color:#EA580C;">Alto</button>
+      <button class="filter-chip" onclick="setFilter('Muito Alto', this)" style="border-color:#DC2626;color:#DC2626;">Muito Alto</button>
+    </div>
+
+    <!-- List -->
+    <div class="sidebar-content" id="sidebar-content">
+      <div class="loading"><div class="spinner"></div><br/>Carregando dados...</div>
+    </div>
+  </div>
+
+  <!-- Map -->
+  <div id="map"></div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let allTrees = [];
+let allRegions = [];
+let activeTab = 'trees';
+let activeFilter = 'all';
+let map = null;
+let markers = [];
+let polygons = [];
+let infoWindow = null;
+let selectedId = null;
+
+// ── Risk colors ───────────────────────────────────────────────────────────────
+const RISK_COLORS = {
+  'Baixo':      { pin: '#16A34A', bg: '#DCFCE7', text: '#15803D' },
+  'Moderado':   { pin: '#CA8A04', bg: '#FEF9C3', text: '#854D0E' },
+  'Alto':       { pin: '#EA580C', bg: '#FFEDD5', text: '#9A3412' },
+  'Muito Alto': { pin: '#DC2626', bg: '#FEE2E2', text: '#991B1B' },
+  'default':    { pin: '#2D6A4F', bg: '#D8F3DC', text: '#1A2E22' },
+};
+
+function getRiskColor(label) {
+  return RISK_COLORS[label] || RISK_COLORS['default'];
+}
+
+// ── Fetch data ────────────────────────────────────────────────────────────────
+async function fetchData() {
+  try {
+    const [treesRes, regionsRes] = await Promise.all([
+      fetch('/api/trpc/arvores.listar?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%7D%7D'),
+      fetch('/api/trpc/regioes.listar?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%7D%7D'),
+    ]);
+
+    const treesJson = await treesRes.json();
+    const regionsJson = await regionsRes.json();
+
+    allTrees = treesJson[0]?.result?.data?.json ?? [];
+    allRegions = regionsJson[0]?.result?.data?.json ?? [];
+
+    updateStats();
+    renderSidebar();
+    renderMap();
+
+    const now = new Date();
+    document.getElementById('last-update').textContent =
+      'Atualizado às ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  } catch (err) {
+    console.error('[Painel] Erro ao buscar dados:', err);
+    document.getElementById('sidebar-content').innerHTML =
+      '<div class="empty">Erro ao carregar dados.<br/>Verifique a conexão com o servidor.</div>';
+  }
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+function updateStats() {
+  document.getElementById('stat-trees').textContent = allTrees.length;
+  document.getElementById('stat-regions').textContent = allRegions.length;
+  const highRisk = allTrees.filter(t =>
+    t.irqClassificacao === 'Alto' || t.irqClassificacao === 'Muito Alto'
+  ).length;
+  document.getElementById('stat-high-risk').textContent = highRisk;
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  activeTab = tab;
+  document.getElementById('tab-trees').classList.toggle('active', tab === 'trees');
+  document.getElementById('tab-regions').classList.toggle('active', tab === 'regions');
+  document.getElementById('filter-bar').style.display = tab === 'trees' ? 'flex' : 'none';
+  renderSidebar();
+}
+
+// ── Filter ────────────────────────────────────────────────────────────────────
+function setFilter(filter, btn) {
+  activeFilter = filter;
+  document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderSidebar();
+}
+
+// ── Sidebar render ────────────────────────────────────────────────────────────
+function renderSidebar() {
+  const container = document.getElementById('sidebar-content');
+
+  if (activeTab === 'trees') {
+    const filtered = activeFilter === 'all'
+      ? allTrees
+      : allTrees.filter(t => t.irqClassificacao === activeFilter);
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="empty">Nenhuma árvore encontrada.</div>';
+      return;
+    }
+
+    container.innerHTML = filtered.map(tree => {
+      const rc = getRiskColor(tree.irqClassificacao);
+      const irqText = tree.irqValor != null
+        ? `IRQ: ${parseFloat(tree.irqValor).toFixed(0)}`
+        : 'IRQ não calculado';
+      const riskPill = tree.irqClassificacao
+        ? `<span class="risk-pill" style="background:${rc.pin}">${tree.irqClassificacao}</span>`
+        : '';
+      const photo = tree.fotoUrl
+        ? `<img class="card-photo" src="${tree.fotoUrl}" alt="Foto" loading="lazy" />`
+        : '';
+      const date = tree.createdAt
+        ? new Date(tree.createdAt).toLocaleDateString('pt-BR')
+        : '';
+      return `
+        <div class="card ${selectedId === tree.localId ? 'selected' : ''}"
+             onclick="selectTree('${tree.localId}')">
+          <div class="card-header">
+            <div class="card-icon" style="background:${rc.bg}">🌳</div>
+            <div style="flex:1;min-width:0;">
+              <div class="card-title">${tree.nomeCientifico || 'Árvore sem nome'}</div>
+              <div class="card-sub">${irqText}${date ? ' · ' + date : ''}</div>
+              ${riskPill}
+            </div>
+          </div>
+          ${tree.descricao ? `<div style="font-size:13px;color:#555;margin-top:8px;line-height:1.5;">${tree.descricao}</div>` : ''}
+          ${photo}
+          <div class="card-coords">${parseFloat(tree.latitude).toFixed(6)}, ${parseFloat(tree.longitude).toFixed(6)}</div>
+        </div>`;
+    }).join('');
+  } else {
+    if (allRegions.length === 0) {
+      container.innerHTML = '<div class="empty">Nenhuma região cadastrada.</div>';
+      return;
+    }
+
+    container.innerHTML = allRegions.map(region => {
+      const coords = Array.isArray(region.coordenadas)
+        ? region.coordenadas
+        : JSON.parse(region.coordenadas || '[]');
+      const photo = region.fotoUrl
+        ? `<img class="card-photo" src="${region.fotoUrl}" alt="Foto" loading="lazy" />`
+        : '';
+      const date = region.createdAt
+        ? new Date(region.createdAt).toLocaleDateString('pt-BR')
+        : '';
+      return `
+        <div class="card ${selectedId === region.localId ? 'selected' : ''}"
+             onclick="selectRegion('${region.localId}')">
+          <div class="card-header">
+            <div class="card-icon" style="background:#EDE9FE">⬡</div>
+            <div style="flex:1;min-width:0;">
+              <div class="region-card-title">${region.titulo || 'Região sem título'}</div>
+              <div class="region-card-sub">${coords.length} vértices${date ? ' · ' + date : ''}</div>
+              <span class="region-badge">Polígono</span>
+            </div>
+          </div>
+          ${region.descricao ? `<div style="font-size:13px;color:#555;margin-top:8px;line-height:1.5;">${region.descricao}</div>` : ''}
+          ${photo}
+        </div>`;
+    }).join('');
+  }
+}
+
+// ── Select tree ───────────────────────────────────────────────────────────────
+function selectTree(localId) {
+  selectedId = localId;
+  renderSidebar();
+
+  const tree = allTrees.find(t => t.localId === localId);
+  if (!tree || !map) return;
+
+  const pos = { lat: parseFloat(tree.latitude), lng: parseFloat(tree.longitude) };
+  map.panTo(pos);
+  map.setZoom(17);
+
+  const marker = markers.find(m => m.treeId === localId);
+  if (marker && infoWindow) {
+    infoWindow.setContent(buildTreeInfoWindow(tree));
+    infoWindow.open(map, marker);
+  }
+}
+
+// ── Select region ─────────────────────────────────────────────────────────────
+function selectRegion(localId) {
+  selectedId = localId;
+  renderSidebar();
+
+  const region = allRegions.find(r => r.localId === localId);
+  if (!region || !map) return;
+
+  const coords = Array.isArray(region.coordenadas)
+    ? region.coordenadas
+    : JSON.parse(region.coordenadas || '[]');
+
+  if (coords.length === 0) return;
+
+  const bounds = new google.maps.LatLngBounds();
+  coords.forEach(c => bounds.extend({ lat: c.latitude, lng: c.longitude }));
+  map.fitBounds(bounds, { top: 60, bottom: 60, left: 60, right: 60 });
+
+  const poly = polygons.find(p => p.regionId === localId);
+  if (poly && infoWindow) {
+    const center = bounds.getCenter();
+    infoWindow.setContent(buildRegionInfoWindow(region, coords.length));
+    infoWindow.setPosition(center);
+    infoWindow.open(map);
+  }
+}
+
+// ── Info window builders ──────────────────────────────────────────────────────
+function buildTreeInfoWindow(tree) {
+  const rc = getRiskColor(tree.irqClassificacao);
+  const riskPill = tree.irqClassificacao
+    ? `<span style="display:inline-block;background:${rc.pin};color:#fff;border-radius:100px;padding:2px 10px;font-size:11px;font-weight:700;margin-bottom:6px;">${tree.irqClassificacao}</span>`
+    : '';
+  const photo = tree.fotoUrl
+    ? `<img src="${tree.fotoUrl}" style="width:100%;height:120px;object-fit:cover;border-radius:8px;margin-bottom:8px;" />`
+    : '';
+  const irq = tree.irqValor != null
+    ? `<p><strong>IRQ:</strong> ${parseFloat(tree.irqValor).toFixed(0)}</p>`
+    : '';
+  const desc = tree.descricao
+    ? `<p>${tree.descricao}</p>`
+    : '';
+  return `<div class="info-window">
+    ${photo}
+    <h3>${tree.nomeCientifico || 'Árvore sem nome'}</h3>
+    ${riskPill}
+    ${irq}
+    ${desc}
+    <p class="coords">${parseFloat(tree.latitude).toFixed(6)}, ${parseFloat(tree.longitude).toFixed(6)}</p>
+  </div>`;
+}
+
+function buildRegionInfoWindow(region, numVertices) {
+  const photo = region.fotoUrl
+    ? `<img src="${region.fotoUrl}" style="width:100%;height:120px;object-fit:cover;border-radius:8px;margin-bottom:8px;" />`
+    : '';
+  const desc = region.descricao
+    ? `<p>${region.descricao}</p>`
+    : '';
+  return `<div class="info-window">
+    ${photo}
+    <h3>${region.titulo || 'Região sem título'}</h3>
+    <p style="color:#888;font-size:12px;">${numVertices} vértices</p>
+    ${desc}
+  </div>`;
+}
+
+// ── Map render ────────────────────────────────────────────────────────────────
+function renderMap() {
+  if (!map) return;
+
+  // Clear existing
+  markers.forEach(m => m.setMap(null));
+  polygons.forEach(p => p.setMap(null));
+  markers = [];
+  polygons = [];
+
+  // Draw trees
+  allTrees.forEach(tree => {
+    const rc = getRiskColor(tree.irqClassificacao);
+    const lat = parseFloat(tree.latitude);
+    const lng = parseFloat(tree.longitude);
+    if (isNaN(lat) || isNaN(lng)) return;
+
+    const marker = new google.maps.Marker({
+      position: { lat, lng },
+      map,
+      title: tree.nomeCientifico || 'Árvore',
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: 10,
+        fillColor: rc.pin,
+        fillOpacity: 1,
+        strokeColor: '#fff',
+        strokeWeight: 2,
+      },
+    });
+    marker.treeId = tree.localId;
+
+    marker.addListener('click', () => {
+      selectedId = tree.localId;
+      renderSidebar();
+      scrollToCard(tree.localId);
+      infoWindow.setContent(buildTreeInfoWindow(tree));
+      infoWindow.open(map, marker);
+    });
+
+    markers.push(marker);
+  });
+
+  // Draw regions
+  allRegions.forEach(region => {
+    const coords = Array.isArray(region.coordenadas)
+      ? region.coordenadas
+      : JSON.parse(region.coordenadas || '[]');
+    if (coords.length < 3) return;
+
+    const path = coords.map(c => ({ lat: c.latitude, lng: c.longitude }));
+
+    const poly = new google.maps.Polygon({
+      paths: path,
+      map,
+      fillColor: '#5B2EBE',
+      fillOpacity: 0.15,
+      strokeColor: '#5B2EBE',
+      strokeWeight: 2.5,
+      strokeOpacity: 0.8,
+    });
+    poly.regionId = region.localId;
+
+    poly.addListener('click', (e) => {
+      selectedId = region.localId;
+      renderSidebar();
+      scrollToCard(region.localId);
+      infoWindow.setContent(buildRegionInfoWindow(region, coords.length));
+      infoWindow.setPosition(e.latLng);
+      infoWindow.open(map);
+    });
+
+    polygons.push(poly);
+  });
+
+  // Fit bounds if we have data
+  if (allTrees.length > 0 || allRegions.length > 0) {
+    const bounds = new google.maps.LatLngBounds();
+    allTrees.forEach(t => {
+      const lat = parseFloat(t.latitude);
+      const lng = parseFloat(t.longitude);
+      if (!isNaN(lat) && !isNaN(lng)) bounds.extend({ lat, lng });
+    });
+    allRegions.forEach(r => {
+      const coords = Array.isArray(r.coordenadas) ? r.coordenadas : JSON.parse(r.coordenadas || '[]');
+      coords.forEach(c => bounds.extend({ lat: c.latitude, lng: c.longitude }));
+    });
+    if (!bounds.isEmpty()) {
+      map.fitBounds(bounds, { top: 80, bottom: 80, left: 80, right: 80 });
+    }
+  }
+}
+
+function scrollToCard(localId) {
+  setTimeout(() => {
+    const cards = document.querySelectorAll('.card');
+    for (const card of cards) {
+      if (card.getAttribute('onclick')?.includes(localId)) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        break;
+      }
+    }
+  }, 50);
+}
+
+// ── Google Maps init ──────────────────────────────────────────────────────────
+window.initMap = function() {
+  map = new google.maps.Map(document.getElementById('map'), {
+    center: { lat: -14.235, lng: -51.9253 },
+    zoom: 5,
+    mapTypeId: 'roadmap',
+    mapTypeControl: true,
+    fullscreenControl: true,
+    streetViewControl: false,
+    styles: [
+      { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+    ],
+  });
+
+  infoWindow = new google.maps.InfoWindow({ maxWidth: 280 });
+
+  fetchData();
+
+  // Auto-refresh every 60 seconds
+  setInterval(fetchData, 60000);
+};
+
+// ── Load Google Maps ──────────────────────────────────────────────────────────
+(function loadGoogleMaps() {
+  const apiKey = window.__GMAPS_KEY__ || '';
+  const script = document.createElement('script');
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMap&language=pt-BR&region=BR`;
+  script.async = true;
+  script.defer = true;
+  document.head.appendChild(script);
+})();
+</script>
+
+<!-- Google Maps API key injected by server -->
+<script>window.__GMAPS_KEY__ = '__GMAPS_API_KEY__';</script>
+
+</body>
+</html>

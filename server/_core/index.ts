@@ -2,6 +2,8 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import fs from "fs";
+import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerUploadRoutes } from "../upload-local";
@@ -58,6 +60,22 @@ async function startServer() {
 
   registerOAuthRoutes(app);
   registerUploadRoutes(app);
+
+  // Painel administrativo web
+  app.get("/painel", (_req, res) => {
+    try {
+      const htmlPath = path.resolve(__dirname, "../painel.html");
+      let html = fs.readFileSync(htmlPath, "utf-8");
+      // Injeta a chave da Google Maps API (se configurada)
+      const gmapsKey = process.env.GOOGLE_MAPS_API_KEY ?? "";
+      html = html.replace("__GMAPS_API_KEY__", gmapsKey);
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(html);
+    } catch (err) {
+      console.error("[painel] erro ao servir HTML:", err);
+      res.status(500).send("Erro ao carregar o painel.");
+    }
+  });
 
   // Rota de exportação KMZ
   app.get("/api/kmz", async (_req, res) => {

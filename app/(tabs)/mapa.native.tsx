@@ -23,6 +23,9 @@ import { ScreenContainer } from "@/components/screen-container";
 import { classifyRisk, formatIRQ, type RiskResult } from "@/lib/irq";
 import { sincronizarArvore, sincronizarRegiao, deletarArvoreRemota, deletarRegiaoRemota } from "@/lib/sync";
 import { useNetworkSync, marcarArvorePendente, marcarRegiaoPendente, type SyncStatus } from "@/hooks/use-network-sync";
+import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system/legacy";
+import { getApiBaseUrl } from "@/constants/oauth";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -209,6 +212,9 @@ export default function MapaScreen() {
   // Sync status
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [pendingCount, setPendingCount] = useState(0);
+
+  // KMZ export
+  const [exportingKmz, setExportingKmz] = useState(false);
 
   // Monitoramento de rede e sync automático de pendentes
   const { syncPending } = useNetworkSync({
@@ -576,6 +582,48 @@ export default function MapaScreen() {
     mapRef.current?.animateToRegion({ ...userLocation, latitudeDelta: 0.005, longitudeDelta: 0.005 }, 600);
   }, [userLocation]);
 
+  // ── Export KMZ ──────────────────────────────────────────────────────────────
+  const handleExportKmz = useCallback(async () => {
+    if (exportingKmz) return;
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setExportingKmz(true);
+    try {
+      const baseUrl = getApiBaseUrl();
+      const kmzUrl = `${baseUrl}/api/kmz`;
+      const today = new Date().toISOString().slice(0, 10);
+      const localUri = FileSystem.documentDirectory + `risco-queda-${today}.kmz`;
+
+      // Baixar o arquivo KMZ para o armazenamento local do app
+      const downloadResult = await FileSystem.downloadAsync(kmzUrl, localUri);
+
+      if (downloadResult.status !== 200) {
+        Alert.alert("Erro", "Não foi possível gerar o arquivo KMZ. Verifique a conexão com o servidor.");
+        return;
+      }
+
+      // Verificar se o sharing está disponível
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert("Indisponível", "O compartilhamento não está disponível neste dispositivo.");
+        return;
+      }
+
+      // Abrir o share sheet nativo
+      await Sharing.shareAsync(downloadResult.uri, {
+        mimeType: "application/vnd.google-earth.kmz",
+        dialogTitle: "Exportar mapa KMZ",
+        UTI: "com.google.earth.kmz",
+      });
+
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      console.warn("[KMZ] Erro ao exportar:", err);
+      Alert.alert("Erro", "Falha ao exportar o arquivo KMZ.");
+    } finally {
+      setExportingKmz(false);
+    }
+  }, [exportingKmz]);
+
   const defaultRegion: Region = {
     latitude: userLocation?.latitude ?? -14.235,
     longitude: userLocation?.longitude ?? -51.9253,
@@ -792,6 +840,21 @@ export default function MapaScreen() {
             <Text style={styles.legendText}>Muito Alto</Text>
           </View>
         </View>
+
+        {/* Export KMZ button */}
+        {!isDrawing && (
+          <TouchableOpacity
+            style={[styles.kmzBtn, exportingKmz && { opacity: 0.6 }]}
+            onPress={handleExportKmz}
+            activeOpacity={0.8}
+            disabled={exportingKmz}
+          >
+            {exportingKmz
+              ? <ActivityIndicator size="small" color="#FFFFFF" />
+              : <Text style={styles.kmzBtnText}>KMZ</Text>
+            }
+          </TouchableOpacity>
+        )}
 
         {/* Center button */}
         {userLocation && (
@@ -1213,6 +1276,8 @@ const styles = StyleSheet.create({
 
   centerBtn: { position: "absolute", bottom: 24, right: 16, width: 48, height: 48, borderRadius: 24, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
   centerBtnIcon: { fontSize: 22, color: PURPLE },
+  kmzBtn: { position: "absolute", bottom: 80, right: 16, width: 48, height: 48, borderRadius: 24, backgroundColor: PURPLE, alignItems: "center", justifyContent: "center", shadowColor: PURPLE, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 4, elevation: 5 },
+  kmzBtnText: { fontSize: 11, fontWeight: "800", color: "#FFFFFF", letterSpacing: 0.5 },
   countBadge: { position: "absolute", bottom: 72, left: 16, backgroundColor: "#2D6A4F", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, flexDirection: "row", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
   countText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
 
