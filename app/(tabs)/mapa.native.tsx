@@ -22,6 +22,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenContainer } from "@/components/screen-container";
 import { classifyRisk, formatIRQ, type RiskResult } from "@/lib/irq";
 import { sincronizarArvore, sincronizarRegiao, deletarArvoreRemota, deletarRegiaoRemota } from "@/lib/sync";
+import { useNetworkSync, marcarArvorePendente, marcarRegiaoPendente, type SyncStatus } from "@/hooks/use-network-sync";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -206,7 +207,14 @@ export default function MapaScreen() {
   const [photoPickerVisible, setPhotoPickerVisible] = useState(false);
 
   // Sync status
-  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "ok" | "error">("idle");
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // Monitoramento de rede e sync automático de pendentes
+  const { syncPending } = useNetworkSync({
+    onStatusChange: (status) => setSyncStatus(status),
+    onPendingCountChange: (count) => setPendingCount(count),
+  });
 
   // IRQ
   const [irqModalVisible, setIrqModalVisible] = useState(false);
@@ -369,7 +377,17 @@ export default function MapaScreen() {
       irqValor: savedMarker!.irq ?? undefined,
       irqClassificacao: savedMarker!.riskLabel ?? undefined,
       pinColor: savedMarker!.riskColor ?? undefined,
-    }).then((ok) => setSyncStatus(ok ? "ok" : "error")).catch(() => setSyncStatus("error"));
+    }).then((ok) => {
+      if (!ok) {
+        marcarArvorePendente(savedMarker!.id);
+        setPendingCount((c) => c + 1);
+      }
+      setSyncStatus(ok ? "ok" : "error");
+    }).catch(() => {
+      marcarArvorePendente(savedMarker!.id);
+      setPendingCount((c) => c + 1);
+      setSyncStatus("error");
+    });
   }, [markerModal]);
 
   const handleEditMarker = useCallback((marker: TreeMarker) => {
@@ -452,7 +470,17 @@ export default function MapaScreen() {
         descricao: newRegion.descricao,
         fotoUri: newRegion.fotoUri ?? undefined,
         coordenadas: newRegion.coordinates,
-      }).then((ok) => setSyncStatus(ok ? "ok" : "error")).catch(() => setSyncStatus("error"));
+      }).then((ok) => {
+        if (!ok) {
+          marcarRegiaoPendente(newRegion.id);
+          setPendingCount((c) => c + 1);
+        }
+        setSyncStatus(ok ? "ok" : "error");
+      }).catch(() => {
+        marcarRegiaoPendente(newRegion.id);
+        setPendingCount((c) => c + 1);
+        setSyncStatus("error");
+      });
     }
     setRegionModal((m) => ({ ...m, visible: false }));
   }, [regionModal, drawingCoords]);
@@ -527,7 +555,17 @@ export default function MapaScreen() {
         irqClassificacao: irqResult.label,
         irqParametros: JSON.stringify(irqForm),
         pinColor: irqResult.pinColor,
-      }).then((ok) => setSyncStatus(ok ? "ok" : "error")).catch(() => setSyncStatus("error"));
+      }).then((ok) => {
+        if (!ok) {
+          marcarArvorePendente(updatedMarker!.id);
+          setPendingCount((c) => c + 1);
+        }
+        setSyncStatus(ok ? "ok" : "error");
+      }).catch(() => {
+        marcarArvorePendente(updatedMarker!.id);
+        setPendingCount((c) => c + 1);
+        setSyncStatus("error");
+      });
     }
   }, [irqResult, irqMarkerId, irqForm]);
 
@@ -631,11 +669,30 @@ export default function MapaScreen() {
 
         {/* Sync status indicator */}
         {syncStatus !== "idle" && (
-          <View style={[styles.syncBadge, syncStatus === "ok" && { backgroundColor: "rgba(22,163,74,0.92)" }, syncStatus === "error" && { backgroundColor: "rgba(220,38,38,0.92)" }]}>
+          <View style={[
+            styles.syncBadge,
+            syncStatus === "ok" && { backgroundColor: "rgba(22,163,74,0.92)" },
+            (syncStatus === "error" || syncStatus === "offline") && { backgroundColor: "rgba(220,38,38,0.92)" },
+          ]}>
             {syncStatus === "syncing" && <ActivityIndicator size="small" color="#FFFFFF" style={{ marginRight: 6 }} />}
             <Text style={styles.syncBadgeText}>
-              {syncStatus === "syncing" ? "Sincronizando..." : syncStatus === "ok" ? "✓ Sincronizado" : "⚠ Sem conexão (salvo localmente)"}
+              {syncStatus === "syncing"
+                ? "Sincronizando..."
+                : syncStatus === "ok"
+                ? "✓ Sincronizado"
+                : syncStatus === "offline"
+                ? `⚠ Sem conexão${pendingCount > 0 ? ` · ${pendingCount} pendente${pendingCount !== 1 ? "s" : ""}` : ""}`
+                : `⚠ Falha${pendingCount > 0 ? ` · ${pendingCount} pendente${pendingCount !== 1 ? "s" : ""}` : " (salvo localmente)"}`}
             </Text>
+            {(syncStatus === "error") && pendingCount > 0 && (
+              <TouchableOpacity
+                onPress={() => { setSyncStatus("syncing"); syncPending(); }}
+                style={styles.syncRetryBtn}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.syncRetryText}>↻</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -1229,4 +1286,6 @@ const styles = StyleSheet.create({
   pickerCancelText: { color: "#666666", fontSize: 16, fontWeight: "500" },
   syncBadge: { position: "absolute", top: 12, alignSelf: "center", flexDirection: "row", alignItems: "center", backgroundColor: "rgba(91,46,190,0.92)", paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, zIndex: 30 },
   syncBadgeText: { color: "#FFFFFF", fontSize: 13, fontWeight: "600" },
+  syncRetryBtn: { marginLeft: 8, backgroundColor: "rgba(255,255,255,0.25)", borderRadius: 12, width: 24, height: 24, alignItems: "center", justifyContent: "center" },
+  syncRetryText: { color: "#FFFFFF", fontSize: 16, fontWeight: "700", lineHeight: 20 },
 });

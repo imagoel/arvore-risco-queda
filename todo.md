@@ -58,4 +58,8 @@
 - [x] Implementar rota GET /uploads/:pasta/:filename para servir fotos locais
 - [x] Implementar rota GET /api/kmz para gerar e baixar arquivo .kmz
 - [x] Atualizar app mobile para usar nova rota de upload (multer FormData)
-- [ ] Detectar retorno de conexão automaticamente e disparar sync pendente
+- [x] Detectar retorno de conexão automaticamente e disparar sync pendente
+- [x] Instalar expo-network e criar hook de monitoramento de conexão
+- [x] Criar fila de sincronização pendente no AsyncStorage
+- [x] Disparar sync automático ao detectar retorno de conexão
+- [x] Exibir indicador de itens pendentes no mapa
