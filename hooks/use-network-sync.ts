@@ -11,6 +11,7 @@ import { useEffect, useRef, useCallback } from "react";
 import * as Network from "expo-network";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { sincronizarArvore, sincronizarRegiao, type ArvoreLocal, type RegiaoLocal } from "@/lib/sync";
+import { notificarSyncConcluido } from "@/lib/notifications";
 
 // Chaves de storage compartilhadas com mapa.native.tsx
 const STORAGE_KEY = "@arvore_marcadores_v3";
@@ -209,6 +210,8 @@ export function useNetworkSync({ onStatusChange, onPendingCountChange }: UseNetw
         : [];
 
       let allOk = true;
+      let syncedTrees = 0;
+      let syncedRegions = 0;
 
       // Sincronizar árvores pendentes
       for (const treeId of pendingTreeIds) {
@@ -221,6 +224,7 @@ export function useNetworkSync({ onStatusChange, onPendingCountChange }: UseNetw
         const ok = await sincronizarArvore(tree);
         if (ok) {
           await removerArvorePendente(treeId);
+          syncedTrees++;
         } else {
           allOk = false;
         }
@@ -237,9 +241,15 @@ export function useNetworkSync({ onStatusChange, onPendingCountChange }: UseNetw
         const ok = await sincronizarRegiao(region);
         if (ok) {
           await removerRegiaoPendente(regionId);
+          syncedRegions++;
         } else {
           allOk = false;
         }
+      }
+
+      // Notificar o usuário apenas se pelo menos um item foi sincronizado com sucesso
+      if (syncedTrees > 0 || syncedRegions > 0) {
+        await notificarSyncConcluido(syncedTrees, syncedRegions);
       }
 
       notifyStatus(allOk ? "ok" : "error");
