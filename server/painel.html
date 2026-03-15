@@ -474,18 +474,42 @@ function buildRegionInfoWindow(region, numVertices) {
   </div>`;
 }
 
-// ── Map render ────────────────────────────────────────────────────────────────
+// ── Map render ──────────────────────────────────────────────────────────────
+// Flag que indica se é o primeiro carregamento (para fitBounds inicial)
+let isFirstLoad = true;
+
 function renderMap() {
   if (!map) return;
 
-  // Clear existing
-  markers.forEach(m => m.setMap(null));
-  polygons.forEach(p => p.setMap(null));
-  markers = [];
-  polygons = [];
+  // ── 1. Construir conjuntos de IDs atuais para diff ────────────────────────
+  const currentTreeIds = new Set(allTrees.map(t => t.localId));
+  const currentRegionIds = new Set(allRegions.map(r => r.localId));
 
-  // Draw trees
+  // ── 2. Remover overlays que não existem mais no backend ───────────────────
+  // Usa setMap(null) individualmente — não recria todos, evita flickering
+  markers = markers.filter(m => {
+    if (!currentTreeIds.has(m.treeId)) {
+      m.setMap(null);
+      return false;
+    }
+    return true;
+  });
+  polygons = polygons.filter(p => {
+    if (!currentRegionIds.has(p.regionId)) {
+      p.setMap(null);
+      return false;
+    }
+    return true;
+  });
+
+  // ── 3. Construir conjuntos de IDs já renderizados ─────────────────────────
+  const renderedTreeIds = new Set(markers.map(m => m.treeId));
+  const renderedRegionIds = new Set(polygons.map(p => p.regionId));
+
+  // ── 4. Adicionar apenas overlays novos (não existentes ainda) ─────────────
   allTrees.forEach(tree => {
+    if (renderedTreeIds.has(tree.localId)) return; // já está no mapa, não recria
+
     const rc = getRiskColor(tree.irqClassificacao);
     const lat = parseFloat(tree.latitude);
     const lng = parseFloat(tree.longitude);
@@ -517,8 +541,9 @@ function renderMap() {
     markers.push(marker);
   });
 
-  // Draw regions
   allRegions.forEach(region => {
+    if (renderedRegionIds.has(region.localId)) return; // já está no mapa, não recria
+
     const coords = Array.isArray(region.coordenadas)
       ? region.coordenadas
       : JSON.parse(region.coordenadas || '[]');
@@ -549,8 +574,9 @@ function renderMap() {
     polygons.push(poly);
   });
 
-  // Fit bounds if we have data
-  if (allTrees.length > 0 || allRegions.length > 0) {
+  // ── 5. fitBounds apenas no primeiro carregamento ──────────────────────────
+  // Nos refreshes subsequentes, o usuário pode ter movido o mapa manualmente
+  if (isFirstLoad && (allTrees.length > 0 || allRegions.length > 0)) {
     const bounds = new google.maps.LatLngBounds();
     allTrees.forEach(t => {
       const lat = parseFloat(t.latitude);
@@ -564,6 +590,7 @@ function renderMap() {
     if (!bounds.isEmpty()) {
       map.fitBounds(bounds, { top: 80, bottom: 80, left: 80, right: 80 });
     }
+    isFirstLoad = false;
   }
 }
 
