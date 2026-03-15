@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import {
   Image,
   Dimensions,
 } from "react-native";
-import MapView, { Marker, MapPressEvent, Region, PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, { Marker, Polygon, Polyline, MapPressEvent, Region, PROVIDER_GOOGLE, LatLng } from "react-native-maps";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
@@ -39,11 +39,28 @@ export interface TreeMarker {
   riskColor: string | null;
 }
 
-interface ModalState {
+export interface RegionPolygon {
+  id: string;
+  coordinates: LatLng[];
+  titulo: string;
+  descricao: string;
+  fotoUri: string | null;
+  criadoEm: string;
+}
+
+interface MarkerModalState {
   visible: boolean;
   latitude: number;
   longitude: number;
   nomeCientifico: string;
+  descricao: string;
+  fotoUri: string | null;
+  editingId: string | null;
+}
+
+interface RegionModalState {
+  visible: boolean;
+  titulo: string;
   descricao: string;
   fotoUri: string | null;
   editingId: string | null;
@@ -61,8 +78,14 @@ interface IRQFormState {
   corpoFrutificacao: boolean;
 }
 
+// "tree" = placing tree markers, "polygon" = drawing polygon vertices, "none" = view only
+type MapMode = "tree" | "polygon" | "none";
+
 const STORAGE_KEY = "@arvore_marcadores_v3";
+const STORAGE_REGIONS_KEY = "@arvore_regioes_v1";
 const PURPLE = "#5B2EBE";
+const POLYGON_FILL = "rgba(91,46,190,0.18)";
+const POLYGON_STROKE = "#5B2EBE";
 
 const emptyIRQForm: IRQFormState = {
   diametroCopa: "",
@@ -95,6 +118,13 @@ function calcularRisco(form: IRQFormState): number {
   const volumeCopa = areaCopa * 0.5 * (ag - ar);
   const fatorDap = dcolo !== 0 ? (dap / dcolo) * ang * 1 : 0;
   return volumeCopa * fatorDap + coloDiag * 800 + rv * -800 + cf * -800;
+}
+
+/** Returns centroid of a polygon for label/tap detection */
+function centroid(coords: LatLng[]): LatLng {
+  const lat = coords.reduce((s, c) => s + c.latitude, 0) / coords.length;
+  const lng = coords.reduce((s, c) => s + c.longitude, 0) / coords.length;
+  return { latitude: lat, longitude: lng };
 }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
@@ -151,41 +181,56 @@ export default function MapaScreen() {
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [loadingLocation, setLoadingLocation] = useState(true);
+
+  // Tree markers
   const [markers, setMarkers] = useState<TreeMarker[]>([]);
   const [selectedMarker, setSelectedMarker] = useState<TreeMarker | null>(null);
-  const [modal, setModal] = useState<ModalState>({
-    visible: false,
-    latitude: 0,
-    longitude: 0,
-    nomeCientifico: "",
-    descricao: "",
-    fotoUri: null,
-    editingId: null,
+  const [markerModal, setMarkerModal] = useState<MarkerModalState>({
+    visible: false, latitude: 0, longitude: 0, nomeCientifico: "", descricao: "", fotoUri: null, editingId: null,
   });
+
+  // Region polygons
+  const [regions, setRegions] = useState<RegionPolygon[]>([]);
+  const [selectedRegion, setSelectedRegion] = useState<RegionPolygon | null>(null);
+  const [regionModal, setRegionModal] = useState<RegionModalState>({
+    visible: false, titulo: "", descricao: "", fotoUri: null, editingId: null,
+  });
+
+  // Drawing state
+  const [mapMode, setMapMode] = useState<MapMode>("none");
+  const [drawingCoords, setDrawingCoords] = useState<LatLng[]>([]);
+
+  // Photo picker — shared between tree and region modals
+  const [photoTarget, setPhotoTarget] = useState<"tree" | "region">("tree");
   const [photoPickerVisible, setPhotoPickerVisible] = useState(false);
+
+  // IRQ
   const [irqModalVisible, setIrqModalVisible] = useState(false);
   const [irqMarkerId, setIrqMarkerId] = useState<string | null>(null);
   const [irqForm, setIrqForm] = useState<IRQFormState>(emptyIRQForm);
   const [irqResult, setIrqResult] = useState<RiskResult | null>(null);
 
-  // ── Load saved markers ──────────────────────────────────────────────────────
+  // ── Persist & load ──────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
         if (stored) setMarkers(JSON.parse(stored));
-      } catch {
-        // ignore
-      }
+        const storedRegions = await AsyncStorage.getItem(STORAGE_REGIONS_KEY);
+        if (storedRegions) setRegions(JSON.parse(storedRegions));
+      } catch { /* ignore */ }
     })();
   }, []);
 
-  // ── Save markers whenever they change ──────────────────────────────────────
   useEffect(() => {
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(markers)).catch(() => {});
   }, [markers]);
 
-  // ── Get user location ───────────────────────────────────────────────────────
+  useEffect(() => {
+    AsyncStorage.setItem(STORAGE_REGIONS_KEY, JSON.stringify(regions)).catch(() => {});
+  }, [regions]);
+
+  // ── Location ────────────────────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       setLoadingLocation(true);
@@ -196,9 +241,7 @@ export default function MapaScreen() {
           setLoadingLocation(false);
           return;
         }
-        const loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-        });
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
         const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
         setUserLocation(coords);
         mapRef.current?.animateToRegion({ ...coords, latitudeDelta: 0.005, longitudeDelta: 0.005 }, 800);
@@ -210,7 +253,7 @@ export default function MapaScreen() {
     })();
   }, []);
 
-  // ── Photo: take with camera ─────────────────────────────────────────────────
+  // ── Photo handlers ──────────────────────────────────────────────────────────
   const handleTakePhoto = useCallback(async () => {
     setPhotoPickerVisible(false);
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -218,18 +261,15 @@ export default function MapaScreen() {
       Alert.alert("Permissão necessária", "Permita o acesso à câmera para tirar uma foto.");
       return;
     }
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: false,
-      quality: 1.0,
-      exif: false,
-    });
+    const result = await ImagePicker.launchCameraAsync({ allowsEditing: false, quality: 1.0, exif: false });
     if (!result.canceled) {
-      setModal((m) => ({ ...m, fotoUri: result.assets[0].uri }));
+      const uri = result.assets[0].uri;
+      if (photoTarget === "tree") setMarkerModal((m) => ({ ...m, fotoUri: uri }));
+      else setRegionModal((m) => ({ ...m, fotoUri: uri }));
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-  }, []);
+  }, [photoTarget]);
 
-  // ── Photo: pick from gallery ────────────────────────────────────────────────
   const handlePickGallery = useCallback(async () => {
     setPhotoPickerVisible(false);
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -238,104 +278,180 @@ export default function MapaScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
-      quality: 1.0,
-      exif: false,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false, quality: 1.0, exif: false,
     });
     if (!result.canceled) {
-      setModal((m) => ({ ...m, fotoUri: result.assets[0].uri }));
+      const uri = result.assets[0].uri;
+      if (photoTarget === "tree") setMarkerModal((m) => ({ ...m, fotoUri: uri }));
+      else setRegionModal((m) => ({ ...m, fotoUri: uri }));
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-  }, []);
+  }, [photoTarget]);
 
-  // ── Handle map press → open modal to add marker ────────────────────────────
+  // ── Map press ───────────────────────────────────────────────────────────────
   const handleMapPress = useCallback((e: MapPressEvent) => {
     const { latitude, longitude } = e.nativeEvent.coordinate;
-    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setSelectedMarker(null);
-    setModal({
-      visible: true,
-      latitude,
-      longitude,
-      nomeCientifico: "",
-      descricao: "",
-      fotoUri: null,
-      editingId: null,
-    });
-  }, []);
 
-  // ── Handle marker press → show detail ─────────────────────────────────────
+    if (mapMode === "polygon") {
+      // Add vertex to drawing
+      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setDrawingCoords((prev) => [...prev, { latitude, longitude }]);
+      return;
+    }
+
+    if (mapMode === "tree") {
+      // Close any open panels
+      setSelectedMarker(null);
+      setSelectedRegion(null);
+      if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setMarkerModal({ visible: true, latitude, longitude, nomeCientifico: "", descricao: "", fotoUri: null, editingId: null });
+      return;
+    }
+
+    // "none" mode — dismiss panels
+    setSelectedMarker(null);
+    setSelectedRegion(null);
+  }, [mapMode]);
+
+  // ── Tree marker handlers ────────────────────────────────────────────────────
   const handleMarkerPress = useCallback((marker: TreeMarker) => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedRegion(null);
     setSelectedMarker(marker);
   }, []);
 
-  // ── Save marker ─────────────────────────────────────────────────────────────
   const handleSaveMarker = useCallback(() => {
-    if (!modal.nomeCientifico.trim()) {
+    if (!markerModal.nomeCientifico.trim()) {
       Alert.alert("Campo obrigatório", "Informe o nome científico da árvore.");
       return;
     }
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    if (modal.editingId) {
+    if (markerModal.editingId) {
       setMarkers((prev) =>
         prev.map((m) =>
-          m.id === modal.editingId
-            ? { ...m, nomeCientifico: modal.nomeCientifico.trim(), descricao: modal.descricao.trim(), fotoUri: modal.fotoUri }
+          m.id === markerModal.editingId
+            ? { ...m, nomeCientifico: markerModal.nomeCientifico.trim(), descricao: markerModal.descricao.trim(), fotoUri: markerModal.fotoUri }
             : m
         )
       );
     } else {
-      const newMarker: TreeMarker = {
-        id: Date.now().toString(),
-        latitude: modal.latitude,
-        longitude: modal.longitude,
-        nomeCientifico: modal.nomeCientifico.trim(),
-        descricao: modal.descricao.trim(),
-        fotoUri: modal.fotoUri,
-        criadoEm: new Date().toLocaleString("pt-BR"),
-        irq: null,
-        riskLabel: null,
-        riskColor: null,
-      };
-      setMarkers((prev) => [...prev, newMarker]);
+      setMarkers((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          latitude: markerModal.latitude,
+          longitude: markerModal.longitude,
+          nomeCientifico: markerModal.nomeCientifico.trim(),
+          descricao: markerModal.descricao.trim(),
+          fotoUri: markerModal.fotoUri,
+          criadoEm: new Date().toLocaleString("pt-BR"),
+          irq: null, riskLabel: null, riskColor: null,
+        },
+      ]);
     }
-    setModal((m) => ({ ...m, visible: false }));
-  }, [modal]);
+    setMarkerModal((m) => ({ ...m, visible: false }));
+  }, [markerModal]);
 
-  // ── Edit marker ─────────────────────────────────────────────────────────────
   const handleEditMarker = useCallback((marker: TreeMarker) => {
     setSelectedMarker(null);
-    setModal({
-      visible: true,
-      latitude: marker.latitude,
-      longitude: marker.longitude,
-      nomeCientifico: marker.nomeCientifico,
-      descricao: marker.descricao,
-      fotoUri: marker.fotoUri ?? null,
-      editingId: marker.id,
-    });
+    setMarkerModal({ visible: true, latitude: marker.latitude, longitude: marker.longitude, nomeCientifico: marker.nomeCientifico, descricao: marker.descricao, fotoUri: marker.fotoUri ?? null, editingId: marker.id });
   }, []);
 
-  // ── Delete marker ───────────────────────────────────────────────────────────
   const handleDeleteMarker = useCallback((id: string) => {
     Alert.alert("Remover árvore", "Deseja remover este marcador do mapa?", [
       { text: "Cancelar", style: "cancel" },
-      {
-        text: "Remover",
-        style: "destructive",
-        onPress: () => {
-          if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          setMarkers((prev) => prev.filter((m) => m.id !== id));
-          setSelectedMarker(null);
-        },
-      },
+      { text: "Remover", style: "destructive", onPress: () => {
+        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setMarkers((prev) => prev.filter((m) => m.id !== id));
+        setSelectedMarker(null);
+      }},
     ]);
   }, []);
 
-  // ── Open IRQ modal for a marker ─────────────────────────────────────────────
+  // ── Polygon / region handlers ───────────────────────────────────────────────
+  const handleStartDrawing = useCallback(() => {
+    setSelectedMarker(null);
+    setSelectedRegion(null);
+    setDrawingCoords([]);
+    setMapMode("polygon");
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, []);
+
+  const handleUndoVertex = useCallback(() => {
+    setDrawingCoords((prev) => prev.slice(0, -1));
+  }, []);
+
+  const handleCancelDrawing = useCallback(() => {
+    setDrawingCoords([]);
+    setMapMode("none");
+  }, []);
+
+  const handleFinishPolygon = useCallback(() => {
+    if (drawingCoords.length < 3) {
+      Alert.alert("Polígono inválido", "Adicione pelo menos 3 pontos para fechar a região.");
+      return;
+    }
+    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setMapMode("none");
+    // Open region modal to fill title/description/photo
+    setRegionModal({ visible: true, titulo: "", descricao: "", fotoUri: null, editingId: null });
+  }, [drawingCoords]);
+
+  const handleSaveRegion = useCallback(() => {
+    if (!regionModal.titulo.trim()) {
+      Alert.alert("Campo obrigatório", "Informe o título da região.");
+      return;
+    }
+    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (regionModal.editingId) {
+      setRegions((prev) =>
+        prev.map((r) =>
+          r.id === regionModal.editingId
+            ? { ...r, titulo: regionModal.titulo.trim(), descricao: regionModal.descricao.trim(), fotoUri: regionModal.fotoUri }
+            : r
+        )
+      );
+    } else {
+      setRegions((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          coordinates: drawingCoords,
+          titulo: regionModal.titulo.trim(),
+          descricao: regionModal.descricao.trim(),
+          fotoUri: regionModal.fotoUri,
+          criadoEm: new Date().toLocaleString("pt-BR"),
+        },
+      ]);
+      setDrawingCoords([]);
+    }
+    setRegionModal((m) => ({ ...m, visible: false }));
+  }, [regionModal, drawingCoords]);
+
+  const handleRegionPress = useCallback((region: RegionPolygon) => {
+    if (mapMode !== "none") return;
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedMarker(null);
+    setSelectedRegion(region);
+  }, [mapMode]);
+
+  const handleEditRegion = useCallback((region: RegionPolygon) => {
+    setSelectedRegion(null);
+    setRegionModal({ visible: true, titulo: region.titulo, descricao: region.descricao, fotoUri: region.fotoUri ?? null, editingId: region.id });
+  }, []);
+
+  const handleDeleteRegion = useCallback((id: string) => {
+    Alert.alert("Remover região", "Deseja remover esta região demarcada?", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Remover", style: "destructive", onPress: () => {
+        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setRegions((prev) => prev.filter((r) => r.id !== id));
+        setSelectedRegion(null);
+      }},
+    ]);
+  }, []);
+
+  // ── IRQ handlers ────────────────────────────────────────────────────────────
   const handleOpenIRQ = useCallback((marker: TreeMarker) => {
     setSelectedMarker(null);
     setIrqMarkerId(marker.id);
@@ -345,7 +461,6 @@ export default function MapaScreen() {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   }, []);
 
-  // ── Calculate IRQ in modal ──────────────────────────────────────────────────
   const handleCalculateIRQ = useCallback(() => {
     const irq = calcularRisco(irqForm);
     const result = classifyRisk(irq);
@@ -353,12 +468,8 @@ export default function MapaScreen() {
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [irqForm]);
 
-  // ── Save IRQ to marker ──────────────────────────────────────────────────────
   const handleSaveIRQ = useCallback(() => {
-    if (!irqResult) {
-      Alert.alert("Calcule primeiro", "Pressione 'Calcular' antes de salvar.");
-      return;
-    }
+    if (!irqResult) { Alert.alert("Calcule primeiro", "Pressione 'Calcular' antes de salvar."); return; }
     setMarkers((prev) =>
       prev.map((m) =>
         m.id === irqMarkerId
@@ -370,7 +481,7 @@ export default function MapaScreen() {
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [irqResult, irqMarkerId]);
 
-  // ── Center on user ──────────────────────────────────────────────────────────
+  // ── Center ──────────────────────────────────────────────────────────────────
   const handleCenterUser = useCallback(() => {
     if (!userLocation) return;
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -383,6 +494,9 @@ export default function MapaScreen() {
     latitudeDelta: userLocation ? 0.005 : 30,
     longitudeDelta: userLocation ? 0.005 : 30,
   };
+
+  const isDrawing = mapMode === "polygon";
+  const isTreeMode = mapMode === "tree";
 
   return (
     <ScreenContainer edges={["top", "left", "right"]} containerClassName="bg-background">
@@ -397,6 +511,7 @@ export default function MapaScreen() {
           showsMyLocationButton={false}
           onPress={handleMapPress}
         >
+          {/* Tree markers */}
           {markers.map((marker) => (
             <Marker
               key={marker.id}
@@ -404,6 +519,63 @@ export default function MapaScreen() {
               onPress={() => handleMarkerPress(marker)}
               pinColor={marker.riskColor ?? "#2D6A4F"}
             />
+          ))}
+
+          {/* Saved region polygons */}
+          {regions.map((region) => (
+            <Polygon
+              key={region.id}
+              coordinates={region.coordinates}
+              fillColor={POLYGON_FILL}
+              strokeColor={POLYGON_STROKE}
+              strokeWidth={2.5}
+              tappable
+              onPress={() => handleRegionPress(region)}
+            />
+          ))}
+
+          {/* Drawing preview — polyline connecting vertices */}
+          {isDrawing && drawingCoords.length >= 2 && (
+            <Polyline
+              coordinates={drawingCoords}
+              strokeColor={POLYGON_STROKE}
+              strokeWidth={2.5}
+              lineDashPattern={[8, 4]}
+            />
+          )}
+
+          {/* Drawing preview — closing line back to first vertex */}
+          {isDrawing && drawingCoords.length >= 3 && (
+            <Polyline
+              coordinates={[drawingCoords[drawingCoords.length - 1], drawingCoords[0]]}
+              strokeColor={POLYGON_STROKE}
+              strokeWidth={1.5}
+              lineDashPattern={[4, 6]}
+            />
+          )}
+
+          {/* Vertex markers during drawing */}
+          {isDrawing && drawingCoords.map((coord, i) => (
+            <Marker
+              key={`vertex-${i}`}
+              coordinate={coord}
+              anchor={{ x: 0.5, y: 0.5 }}
+              pinColor={i === 0 ? "#DC2626" : POLYGON_STROKE}
+            />
+          ))}
+
+          {/* Centroid markers for saved regions (tappable label) */}
+          {regions.map((region) => (
+            <Marker
+              key={`region-label-${region.id}`}
+              coordinate={centroid(region.coordinates)}
+              anchor={{ x: 0.5, y: 0.5 }}
+              onPress={() => handleRegionPress(region)}
+            >
+              <View style={styles.regionLabelMarker}>
+                <Text style={styles.regionLabelText} numberOfLines={1}>{region.titulo}</Text>
+              </View>
+            </Marker>
           ))}
         </MapView>
 
@@ -422,10 +594,65 @@ export default function MapaScreen() {
           </View>
         )}
 
-        {/* Hint */}
-        {!loadingLocation && !locationError && (
+        {/* Hint banner */}
+        {!loadingLocation && !locationError && !isDrawing && mapMode === "none" && (
           <View style={styles.hintBanner}>
             <Text style={styles.hintText}>Toque no mapa para marcar uma árvore</Text>
+          </View>
+        )}
+        {!loadingLocation && !locationError && isTreeMode && (
+          <View style={[styles.hintBanner, { backgroundColor: "rgba(45,106,79,0.92)" }]}>
+            <Text style={[styles.hintText, { color: "#FFFFFF" }]}>Toque no mapa para marcar uma árvore</Text>
+          </View>
+        )}
+
+        {/* Drawing toolbar */}
+        {isDrawing && (
+          <View style={styles.drawingToolbar}>
+            <View style={styles.drawingInfo}>
+              <Text style={styles.drawingInfoText}>
+                {drawingCoords.length === 0
+                  ? "Toque no mapa para adicionar pontos"
+                  : `${drawingCoords.length} ponto${drawingCoords.length !== 1 ? "s" : ""} — toque para continuar`}
+              </Text>
+            </View>
+            <View style={styles.drawingActions}>
+              {drawingCoords.length > 0 && (
+                <TouchableOpacity style={styles.drawingBtnUndo} onPress={handleUndoVertex} activeOpacity={0.8}>
+                  <Text style={styles.drawingBtnUndoText}>↩ Desfazer</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.drawingBtnCancel} onPress={handleCancelDrawing} activeOpacity={0.8}>
+                <Text style={styles.drawingBtnCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.drawingBtnFinish, drawingCoords.length < 3 && { opacity: 0.45 }]}
+                onPress={handleFinishPolygon}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.drawingBtnFinishText}>✓ Fechar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Mode toggle buttons (bottom-left area) */}
+        {!isDrawing && (
+          <View style={styles.modeButtons}>
+            <TouchableOpacity
+              style={[styles.modeBtn, mapMode === "tree" && styles.modeBtnActive]}
+              onPress={() => setMapMode(mapMode === "tree" ? "none" : "tree")}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.modeBtnText, mapMode === "tree" && styles.modeBtnTextActive]}>🌳 Árvore</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeBtn, styles.modeBtnRegion]}
+              onPress={handleStartDrawing}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.modeBtnRegionText}>⬡ Região</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -456,25 +683,26 @@ export default function MapaScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Marker count badge */}
-        {markers.length > 0 && (
+        {/* Count badges */}
+        {(markers.length > 0 || regions.length > 0) && !isDrawing && (
           <View style={styles.countBadge}>
-            <Text style={styles.countText}>
-              {markers.length} {markers.length === 1 ? "árvore" : "árvores"}
-            </Text>
+            {markers.length > 0 && (
+              <Text style={styles.countText}>🌳 {markers.length}</Text>
+            )}
+            {regions.length > 0 && (
+              <Text style={[styles.countText, markers.length > 0 && { marginLeft: 8 }]}>⬡ {regions.length}</Text>
+            )}
           </View>
         )}
       </View>
 
-      {/* ── Detail Bottom Sheet ─────────────────────────────────────────────── */}
+      {/* ── Tree Detail Bottom Sheet ─────────────────────────────────────────── */}
       {selectedMarker && (
         <View style={styles.detailSheet}>
           <View style={styles.detailHandle} />
-
           {selectedMarker.fotoUri ? (
             <Image source={{ uri: selectedMarker.fotoUri }} style={styles.detailPhoto} resizeMode="cover" />
           ) : null}
-
           <View style={styles.detailHeader}>
             {!selectedMarker.fotoUri && (
               <View style={styles.detailTreeIcon}>
@@ -489,7 +717,6 @@ export default function MapaScreen() {
               <Text style={styles.detailCloseText}>✕</Text>
             </TouchableOpacity>
           </View>
-
           {selectedMarker.irq !== null && selectedMarker.riskLabel ? (
             <View style={[styles.riskBadgeContainer, { backgroundColor: classifyRisk(selectedMarker.irq).bgColor, borderColor: classifyRisk(selectedMarker.irq).borderColor }]}>
               <Text style={[styles.riskBadgeLabel, { color: classifyRisk(selectedMarker.irq).color }]}>
@@ -500,15 +727,10 @@ export default function MapaScreen() {
               </View>
             </View>
           ) : (
-            <TouchableOpacity
-              style={styles.irqPromptBtn}
-              onPress={() => handleOpenIRQ(selectedMarker)}
-              activeOpacity={0.8}
-            >
+            <TouchableOpacity style={styles.irqPromptBtn} onPress={() => handleOpenIRQ(selectedMarker)} activeOpacity={0.8}>
               <Text style={styles.irqPromptText}>📊 Calcular Índice de Risco (IRQ)</Text>
             </TouchableOpacity>
           )}
-
           {selectedMarker.descricao ? (
             <Text style={styles.detailDesc}>{selectedMarker.descricao}</Text>
           ) : (
@@ -519,77 +741,88 @@ export default function MapaScreen() {
           </Text>
           <View style={styles.detailActions}>
             {selectedMarker.irq !== null && (
-              <TouchableOpacity
-                style={[styles.detailBtn, styles.detailBtnIRQ]}
-                onPress={() => handleOpenIRQ(selectedMarker)}
-                activeOpacity={0.8}
-              >
+              <TouchableOpacity style={[styles.detailBtn, styles.detailBtnIRQ]} onPress={() => handleOpenIRQ(selectedMarker)} activeOpacity={0.8}>
                 <Text style={styles.detailBtnIRQText}>Recalcular IRQ</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              style={[styles.detailBtn, styles.detailBtnEdit]}
-              onPress={() => handleEditMarker(selectedMarker)}
-              activeOpacity={0.8}
-            >
+            <TouchableOpacity style={[styles.detailBtn, styles.detailBtnEdit]} onPress={() => handleEditMarker(selectedMarker)} activeOpacity={0.8}>
               <Text style={styles.detailBtnEditText}>Editar</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.detailBtn, styles.detailBtnDelete]}
-              onPress={() => handleDeleteMarker(selectedMarker.id)}
-              activeOpacity={0.8}
-            >
+            <TouchableOpacity style={[styles.detailBtn, styles.detailBtnDelete]} onPress={() => handleDeleteMarker(selectedMarker.id)} activeOpacity={0.8}>
               <Text style={styles.detailBtnDeleteText}>Remover</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
 
-      {/* ── Add / Edit Modal ────────────────────────────────────────────────── */}
+      {/* ── Region Detail Bottom Sheet ───────────────────────────────────────── */}
+      {selectedRegion && (
+        <View style={styles.detailSheet}>
+          <View style={styles.detailHandle} />
+          {selectedRegion.fotoUri ? (
+            <Image source={{ uri: selectedRegion.fotoUri }} style={styles.detailPhoto} resizeMode="cover" />
+          ) : null}
+          <View style={styles.detailHeader}>
+            {!selectedRegion.fotoUri && (
+              <View style={[styles.detailTreeIcon, { backgroundColor: "#EDE9FE" }]}>
+                <Text style={styles.detailTreeEmoji}>⬡</Text>
+              </View>
+            )}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.detailName}>{selectedRegion.titulo}</Text>
+              <Text style={styles.detailDate}>{selectedRegion.criadoEm} · {selectedRegion.coordinates.length} pontos</Text>
+            </View>
+            <TouchableOpacity onPress={() => setSelectedRegion(null)} style={styles.detailClose}>
+              <Text style={styles.detailCloseText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          {selectedRegion.descricao ? (
+            <Text style={styles.detailDesc}>{selectedRegion.descricao}</Text>
+          ) : (
+            <Text style={styles.detailDescEmpty}>Sem descrição.</Text>
+          )}
+          <View style={styles.detailActions}>
+            <TouchableOpacity style={[styles.detailBtn, styles.detailBtnEdit]} onPress={() => handleEditRegion(selectedRegion)} activeOpacity={0.8}>
+              <Text style={styles.detailBtnEditText}>Editar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.detailBtn, styles.detailBtnDelete]} onPress={() => handleDeleteRegion(selectedRegion.id)} activeOpacity={0.8}>
+              <Text style={styles.detailBtnDeleteText}>Remover</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* ── Tree Add/Edit Modal ──────────────────────────────────────────────── */}
       <Modal
-        visible={modal.visible}
+        visible={markerModal.visible}
         animationType="slide"
         transparent={true}
         statusBarTranslucent={true}
-        onRequestClose={() => setModal((m) => ({ ...m, visible: false }))}
+        onRequestClose={() => setMarkerModal((m) => ({ ...m, visible: false }))}
       >
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            style={styles.modalKAV}
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            keyboardVerticalOffset={0}
-          >
+          <KeyboardAvoidingView style={styles.modalKAV} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={0}>
             <View style={styles.modalSheet}>
               <View style={styles.detailHandle} />
-              <Text style={styles.modalTitle}>
-                {modal.editingId ? "Editar Árvore" : "Cadastrar Árvore"}
-              </Text>
-              <Text style={styles.modalCoords}>
-                {modal.latitude.toFixed(6)}, {modal.longitude.toFixed(6)}
-              </Text>
-
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                contentContainerStyle={styles.modalScrollContent}
-              >
+              <Text style={styles.modalTitle}>{markerModal.editingId ? "Editar Árvore" : "Cadastrar Árvore"}</Text>
+              <Text style={styles.modalCoords}>{markerModal.latitude.toFixed(6)}, {markerModal.longitude.toFixed(6)}</Text>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalScrollContent}>
                 <Text style={styles.inputLabel}>Nome Científico *</Text>
                 <TextInput
                   style={styles.textInput}
-                  value={modal.nomeCientifico}
-                  onChangeText={(v) => setModal((m) => ({ ...m, nomeCientifico: v }))}
+                  value={markerModal.nomeCientifico}
+                  onChangeText={(v) => setMarkerModal((m) => ({ ...m, nomeCientifico: v }))}
                   placeholder="Ex: Ficus benjamina"
                   placeholderTextColor="#AAAAAA"
                   returnKeyType="next"
                   autoCapitalize="sentences"
                 />
                 <View style={styles.inputUnderline} />
-
                 <Text style={[styles.inputLabel, { marginTop: 20 }]}>Descrição do Estado</Text>
                 <TextInput
                   style={[styles.textInput, styles.textArea]}
-                  value={modal.descricao}
-                  onChangeText={(v) => setModal((m) => ({ ...m, descricao: v }))}
+                  value={markerModal.descricao}
+                  onChangeText={(v) => setMarkerModal((m) => ({ ...m, descricao: v }))}
                   placeholder="Descreva brevemente o estado da árvore..."
                   placeholderTextColor="#AAAAAA"
                   multiline
@@ -599,34 +832,31 @@ export default function MapaScreen() {
                   autoCapitalize="sentences"
                 />
                 <View style={styles.inputUnderline} />
-
-                {/* Foto */}
                 <Text style={[styles.inputLabel, { marginTop: 20 }]}>Foto da Árvore</Text>
-                {modal.fotoUri ? (
+                {markerModal.fotoUri ? (
                   <View style={styles.photoPreviewContainer}>
-                    <Image source={{ uri: modal.fotoUri }} style={styles.photoPreview} resizeMode="cover" />
+                    <Image source={{ uri: markerModal.fotoUri }} style={styles.photoPreview} resizeMode="cover" />
                     <View style={styles.photoActions}>
-                      <TouchableOpacity style={styles.photoActionBtn} onPress={() => setPhotoPickerVisible(true)} activeOpacity={0.8}>
+                      <TouchableOpacity style={styles.photoActionBtn} onPress={() => { setPhotoTarget("tree"); setPhotoPickerVisible(true); }} activeOpacity={0.8}>
                         <Text style={styles.photoActionText}>Trocar foto</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={[styles.photoActionBtn, styles.photoRemoveBtn]} onPress={() => setModal((m) => ({ ...m, fotoUri: null }))} activeOpacity={0.8}>
+                      <TouchableOpacity style={[styles.photoActionBtn, styles.photoRemoveBtn]} onPress={() => setMarkerModal((m) => ({ ...m, fotoUri: null }))} activeOpacity={0.8}>
                         <Text style={styles.photoRemoveText}>Remover</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
                 ) : (
-                  <TouchableOpacity style={styles.photoPlaceholder} onPress={() => setPhotoPickerVisible(true)} activeOpacity={0.8}>
+                  <TouchableOpacity style={styles.photoPlaceholder} onPress={() => { setPhotoTarget("tree"); setPhotoPickerVisible(true); }} activeOpacity={0.8}>
                     <Text style={styles.photoPlaceholderIcon}>📷</Text>
                     <Text style={styles.photoPlaceholderText}>Adicionar foto</Text>
                   </TouchableOpacity>
                 )}
-
                 <View style={styles.modalButtons}>
-                  <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setModal((m) => ({ ...m, visible: false }))} activeOpacity={0.75}>
+                  <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setMarkerModal((m) => ({ ...m, visible: false }))} activeOpacity={0.75}>
                     <Text style={styles.modalBtnCancelText}>Cancelar</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.modalBtnSave} onPress={handleSaveMarker} activeOpacity={0.85}>
-                    <Text style={styles.modalBtnSaveText}>{modal.editingId ? "Salvar" : "Cadastrar"}</Text>
+                    <Text style={styles.modalBtnSaveText}>{markerModal.editingId ? "Salvar" : "Cadastrar"}</Text>
                   </TouchableOpacity>
                 </View>
               </ScrollView>
@@ -635,7 +865,82 @@ export default function MapaScreen() {
         </View>
       </Modal>
 
-      {/* ── Photo Picker Action Sheet ───────────────────────────────────────── */}
+      {/* ── Region Add/Edit Modal ────────────────────────────────────────────── */}
+      <Modal
+        visible={regionModal.visible}
+        animationType="slide"
+        transparent={true}
+        statusBarTranslucent={true}
+        onRequestClose={() => setRegionModal((m) => ({ ...m, visible: false }))}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView style={styles.modalKAV} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={0}>
+            <View style={styles.modalSheet}>
+              <View style={styles.detailHandle} />
+              <Text style={styles.modalTitle}>{regionModal.editingId ? "Editar Região" : "Cadastrar Região"}</Text>
+              {!regionModal.editingId && (
+                <Text style={styles.modalCoords}>{drawingCoords.length} pontos demarcados</Text>
+              )}
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalScrollContent}>
+                <Text style={styles.inputLabel}>Título *</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={regionModal.titulo}
+                  onChangeText={(v) => setRegionModal((m) => ({ ...m, titulo: v }))}
+                  placeholder="Ex: Área de preservação norte"
+                  placeholderTextColor="#AAAAAA"
+                  returnKeyType="next"
+                  autoCapitalize="sentences"
+                />
+                <View style={styles.inputUnderline} />
+                <Text style={[styles.inputLabel, { marginTop: 20 }]}>Descrição</Text>
+                <TextInput
+                  style={[styles.textInput, styles.textArea]}
+                  value={regionModal.descricao}
+                  onChangeText={(v) => setRegionModal((m) => ({ ...m, descricao: v }))}
+                  placeholder="Descreva brevemente esta região..."
+                  placeholderTextColor="#AAAAAA"
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                  returnKeyType="done"
+                  autoCapitalize="sentences"
+                />
+                <View style={styles.inputUnderline} />
+                <Text style={[styles.inputLabel, { marginTop: 20 }]}>Foto da Região</Text>
+                {regionModal.fotoUri ? (
+                  <View style={styles.photoPreviewContainer}>
+                    <Image source={{ uri: regionModal.fotoUri }} style={styles.photoPreview} resizeMode="cover" />
+                    <View style={styles.photoActions}>
+                      <TouchableOpacity style={styles.photoActionBtn} onPress={() => { setPhotoTarget("region"); setPhotoPickerVisible(true); }} activeOpacity={0.8}>
+                        <Text style={styles.photoActionText}>Trocar foto</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.photoActionBtn, styles.photoRemoveBtn]} onPress={() => setRegionModal((m) => ({ ...m, fotoUri: null }))} activeOpacity={0.8}>
+                        <Text style={styles.photoRemoveText}>Remover</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <TouchableOpacity style={styles.photoPlaceholder} onPress={() => { setPhotoTarget("region"); setPhotoPickerVisible(true); }} activeOpacity={0.8}>
+                    <Text style={styles.photoPlaceholderIcon}>📷</Text>
+                    <Text style={styles.photoPlaceholderText}>Adicionar foto</Text>
+                  </TouchableOpacity>
+                )}
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity style={styles.modalBtnCancel} onPress={() => { setRegionModal((m) => ({ ...m, visible: false })); if (!regionModal.editingId) setDrawingCoords([]); }} activeOpacity={0.75}>
+                    <Text style={styles.modalBtnCancelText}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.modalBtnSave} onPress={handleSaveRegion} activeOpacity={0.85}>
+                    <Text style={styles.modalBtnSaveText}>{regionModal.editingId ? "Salvar" : "Cadastrar"}</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      {/* ── Photo Picker Action Sheet ────────────────────────────────────────── */}
       <Modal
         visible={photoPickerVisible}
         animationType="slide"
@@ -669,7 +974,7 @@ export default function MapaScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* ── IRQ Calculator Modal ────────────────────────────────────────────── */}
+      {/* ── IRQ Calculator Modal ─────────────────────────────────────────────── */}
       <Modal
         visible={irqModalVisible}
         animationType="slide"
@@ -678,23 +983,12 @@ export default function MapaScreen() {
         onRequestClose={() => setIrqModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            style={styles.modalKAV}
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            keyboardVerticalOffset={0}
-          >
+          <KeyboardAvoidingView style={styles.modalKAV} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={0}>
             <View style={[styles.modalSheet, { maxHeight: SCREEN_HEIGHT * 0.92 }]}>
               <View style={styles.detailHandle} />
               <Text style={styles.modalTitle}>Calcular Risco (IRQ)</Text>
-              <Text style={[styles.modalCoords, { marginBottom: 12 }]}>
-                Preencha os dados para calcular o índice
-              </Text>
-
-              <ScrollView
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                contentContainerStyle={styles.modalScrollContent}
-              >
+              <Text style={[styles.modalCoords, { marginBottom: 12 }]}>Preencha os dados para calcular o índice</Text>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.modalScrollContent}>
                 <IRQFieldInput label="Diâmetro da Copa" value={irqForm.diametroCopa} onChangeText={(v) => setIrqForm((f) => ({ ...f, diametroCopa: v }))} />
                 <IRQFieldInput label="Altura Geral" value={irqForm.alturaGeral} onChangeText={(v) => setIrqForm((f) => ({ ...f, alturaGeral: v }))} />
                 <IRQFieldInput label="Altura da 1ª Ramificação" value={irqForm.alturaRamificacao} onChangeText={(v) => setIrqForm((f) => ({ ...f, alturaRamificacao: v }))} />
@@ -702,16 +996,13 @@ export default function MapaScreen() {
                 <IRQFieldInput label="DCOLO" value={irqForm.dcolo} onChangeText={(v) => setIrqForm((f) => ({ ...f, dcolo: v }))} />
                 <IRQFieldInput label="Ângulo de Inclinação" value={irqForm.anguloInclinacao} onChangeText={(v) => setIrqForm((f) => ({ ...f, anguloInclinacao: v }))} />
                 <IRQFieldInput label="Colo Diagnosticado (Soma)" value={irqForm.coloDiagnosticado} onChangeText={(v) => setIrqForm((f) => ({ ...f, coloDiagnosticado: v }))} />
-
                 <View style={irqStyles.checkboxSection}>
                   <IRQCheckbox label="Ramificação em V" value={irqForm.ramificacaoV} onToggle={() => setIrqForm((f) => ({ ...f, ramificacaoV: !f.ramificacaoV }))} />
                   <IRQCheckbox label="Corpo de Frutificação" value={irqForm.corpoFrutificacao} onToggle={() => setIrqForm((f) => ({ ...f, corpoFrutificacao: !f.corpoFrutificacao }))} />
                 </View>
-
                 <TouchableOpacity style={irqStyles.btnCalcular} onPress={handleCalculateIRQ} activeOpacity={0.85}>
                   <Text style={irqStyles.btnCalcularText}>Calcular</Text>
                 </TouchableOpacity>
-
                 {irqResult && (
                   <View style={[irqStyles.resultCard, { backgroundColor: irqResult.bgColor, borderColor: irqResult.borderColor }]}>
                     <Text style={[irqStyles.resultLabel, { color: irqResult.color }]}>Índice de Risco de Queda</Text>
@@ -721,16 +1012,11 @@ export default function MapaScreen() {
                     </View>
                   </View>
                 )}
-
                 <View style={styles.modalButtons}>
                   <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setIrqModalVisible(false)} activeOpacity={0.75}>
                     <Text style={styles.modalBtnCancelText}>Cancelar</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.modalBtnSave, !irqResult && { opacity: 0.5 }]}
-                    onPress={handleSaveIRQ}
-                    activeOpacity={0.85}
-                  >
+                  <TouchableOpacity style={[styles.modalBtnSave, !irqResult && { opacity: 0.5 }]} onPress={handleSaveIRQ} activeOpacity={0.85}>
                     <Text style={styles.modalBtnSaveText}>Salvar no Marcador</Text>
                   </TouchableOpacity>
                 </View>
@@ -778,6 +1064,31 @@ const styles = StyleSheet.create({
   hintBanner: { position: "absolute", top: 16, left: 16, right: 160, backgroundColor: "rgba(255,255,255,0.92)", borderRadius: 10, padding: 10, alignItems: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   hintText: { color: "#444", fontSize: 12, fontWeight: "500" },
 
+  // Drawing toolbar
+  drawingToolbar: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#FFFFFF", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, paddingBottom: 32, shadowColor: "#000", shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 6 },
+  drawingInfo: { backgroundColor: "#F3F0FF", borderRadius: 10, padding: 10, marginBottom: 12, alignItems: "center" },
+  drawingInfoText: { color: PURPLE, fontSize: 13, fontWeight: "600" },
+  drawingActions: { flexDirection: "row", gap: 8 },
+  drawingBtnUndo: { flex: 1, height: 44, borderRadius: 50, borderWidth: 1.5, borderColor: "#888", alignItems: "center", justifyContent: "center" },
+  drawingBtnUndoText: { color: "#444", fontSize: 14, fontWeight: "600" },
+  drawingBtnCancel: { flex: 1, height: 44, borderRadius: 50, borderWidth: 1.5, borderColor: "#DC2626", alignItems: "center", justifyContent: "center" },
+  drawingBtnCancelText: { color: "#DC2626", fontSize: 14, fontWeight: "600" },
+  drawingBtnFinish: { flex: 1.5, height: 44, borderRadius: 50, backgroundColor: PURPLE, alignItems: "center", justifyContent: "center" },
+  drawingBtnFinishText: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
+
+  // Mode buttons
+  modeButtons: { position: "absolute", bottom: 24, left: 16, flexDirection: "row", gap: 8 },
+  modeBtn: { height: 40, paddingHorizontal: 14, borderRadius: 50, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 4, borderWidth: 1.5, borderColor: "#E5E7EB" },
+  modeBtnActive: { backgroundColor: "#2D6A4F", borderColor: "#2D6A4F" },
+  modeBtnText: { fontSize: 13, fontWeight: "600", color: "#444" },
+  modeBtnTextActive: { color: "#FFFFFF" },
+  modeBtnRegion: { backgroundColor: PURPLE, borderColor: PURPLE },
+  modeBtnRegionText: { fontSize: 13, fontWeight: "600", color: "#FFFFFF" },
+
+  // Region label marker
+  regionLabelMarker: { backgroundColor: "rgba(91,46,190,0.85)", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 120 },
+  regionLabelText: { color: "#FFFFFF", fontSize: 11, fontWeight: "700" },
+
   legend: { position: "absolute", top: 16, right: 16, backgroundColor: "rgba(255,255,255,0.95)", borderRadius: 10, padding: 10, gap: 6, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   legendRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
@@ -785,7 +1096,7 @@ const styles = StyleSheet.create({
 
   centerBtn: { position: "absolute", bottom: 24, right: 16, width: 48, height: 48, borderRadius: 24, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
   centerBtnIcon: { fontSize: 22, color: PURPLE },
-  countBadge: { position: "absolute", bottom: 24, left: 16, backgroundColor: "#2D6A4F", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
+  countBadge: { position: "absolute", bottom: 72, left: 16, backgroundColor: "#2D6A4F", borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, flexDirection: "row", shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4 },
   countText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
 
   // Detail sheet
@@ -811,38 +1122,17 @@ const styles = StyleSheet.create({
   detailBtnDelete: { borderWidth: 1.5, borderColor: "#DC2626" },
   detailBtnDeleteText: { color: "#DC2626", fontWeight: "600", fontSize: 14 },
 
-  // IRQ prompt
   irqPromptBtn: { backgroundColor: "#F0FDF4", borderRadius: 10, padding: 12, borderWidth: 1, borderColor: "#BBF7D0", alignItems: "center" },
   irqPromptText: { color: "#166534", fontSize: 14, fontWeight: "600" },
-
-  // Risk badge in detail
   riskBadgeContainer: { borderRadius: 12, borderWidth: 1.5, padding: 12, alignItems: "center", gap: 6 },
   riskBadgeLabel: { fontSize: 13, fontWeight: "700" },
   riskBadgePill: { borderRadius: 100, paddingHorizontal: 14, paddingVertical: 4 },
   riskBadgePillText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
 
-  // Modal — key fix: outer overlay is just a backdrop, KAV + sheet are separate
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.45)",
-  },
-  modalKAV: {
-    // No flex:1 here — let the sheet define its own height
-    justifyContent: "flex-end",
-  },
-  modalSheet: {
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 40,
-    maxHeight: SCREEN_HEIGHT * 0.88,
-  },
-  modalScrollContent: {
-    paddingBottom: 20,
-  },
+  modalOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
+  modalKAV: { justifyContent: "flex-end" },
+  modalSheet: { backgroundColor: "#FFFFFF", borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40, maxHeight: SCREEN_HEIGHT * 0.88 },
+  modalScrollContent: { paddingBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: "800", color: "#1A2E22", marginBottom: 4 },
   modalCoords: { fontSize: 12, color: "#AAAAAA", fontFamily: Platform.OS === "ios" ? "Courier" : "monospace", marginBottom: 20 },
   inputLabel: { fontSize: 14, color: "#666666", marginBottom: 6, fontWeight: "400" },
@@ -850,7 +1140,6 @@ const styles = StyleSheet.create({
   textArea: { minHeight: 80, fontSize: 15, lineHeight: 22 },
   inputUnderline: { height: 1, backgroundColor: "#CCCCCC", marginTop: 2 },
 
-  // Photo
   photoPlaceholder: { height: 120, borderRadius: 12, borderWidth: 1.5, borderColor: "#CCCCCC", borderStyle: "dashed", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#F9F9F9", marginTop: 4 },
   photoPlaceholderIcon: { fontSize: 32 },
   photoPlaceholderText: { fontSize: 15, color: "#888888", fontWeight: "500" },
@@ -862,14 +1151,12 @@ const styles = StyleSheet.create({
   photoRemoveBtn: { borderColor: "#DC2626" },
   photoRemoveText: { color: "#DC2626", fontSize: 14, fontWeight: "600" },
 
-  // Buttons
   modalButtons: { flexDirection: "row", gap: 12, marginTop: 20 },
   modalBtnCancel: { flex: 1, height: 52, borderRadius: 50, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "#CCCCCC" },
   modalBtnCancelText: { color: "#666666", fontSize: 16, fontWeight: "500" },
   modalBtnSave: { flex: 2, height: 52, borderRadius: 50, backgroundColor: PURPLE, alignItems: "center", justifyContent: "center", shadowColor: PURPLE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   modalBtnSaveText: { color: "#FFFFFF", fontSize: 17, fontWeight: "700" },
 
-  // Photo Picker
   pickerOverlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
   pickerSheet: { backgroundColor: "#FFFFFF", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
   pickerTitle: { fontSize: 18, fontWeight: "700", color: "#1A2E22", marginBottom: 20, textAlign: "center" },
