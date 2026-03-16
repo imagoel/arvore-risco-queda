@@ -346,7 +346,7 @@ function renderSidebar() {
           <div class="card-header">
             <div class="card-icon" style="background:${rc.bg}">🌳</div>
             <div style="flex:1;min-width:0;">
-              <div class="card-title">${tree.nomecientifico || 'Árvore sem nome'}</div>
+              <div class="card-title">${tree.nomeCientifico || 'Árvore sem nome'}</div>
               <div class="card-sub">${irqText}${date ? ' · ' + date : ''}</div>
               ${riskPill}
             </div>
@@ -453,7 +453,7 @@ function buildTreeInfoWindow(tree) {
     : '';
   return `<div class="info-window">
     ${photo}
-    <h3>${tree.nomecientifico || 'Árvore sem nome'}</h3>
+    <h3>${tree.nomeCientifico || 'Árvore sem nome'}</h3>
     ${riskPill}
     ${irq}
     ${desc}
@@ -520,7 +520,7 @@ function renderMap() {
     const marker = new google.maps.Marker({
       position: { lat, lng },
       map,
-      title: tree.nomecientifico || 'Árvore',
+      title: tree.nomeCientifico || 'Árvore',
       icon: {
         path: google.maps.SymbolPath.CIRCLE,
         scale: 10,

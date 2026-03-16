@@ -81,3 +81,7 @@
 - [x] Bug: painel web exibe "Árvore sem nome" — corrigido: nomecientifico (lowercase) + irqClassificacao
 - [x] Bug: imagem não carrega no painel web — corrigido: window.__API_BASE__ injetado pelo servidor para resolver fotoUrl relativa
 - [x] Fortalecer fallback da URL base do painel: prioridade x-forwarded > host header > env var > localhost
+- [x] Correção cirúrgica: nome JS nomecientifico → nomeCientifico no schema.ts (sem migration SQL necessária)
+- [x] Reverter fix manual de nomecientifico no painel.html — 3 ocorrências voltaram para nomeCientifico
+- [x] Corrigir nomecientifico no kmz.ts e routers.ts (2 ocorrências cada)
+- [ ] Backlog: refatoração snake_case (foto_url, local_id etc.) — tarefa planejada antes do deploy em produção

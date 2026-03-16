@@ -101,7 +101,7 @@ export const appRouter = router({
         const existente = await db.buscarArvore(input.localId);
         if (existente) {
           await db.atualizarArvore(input.localId, {
-            nomecientifico: input.nomeCientifico,
+            nomeCientifico: input.nomeCientifico,
             descricao: input.descricao,
             fotoUrl: input.fotoUrl,
             latitude: String(input.latitude),
@@ -115,7 +115,7 @@ export const appRouter = router({
         } else {
           await db.criarArvore({
             localId: input.localId,
-            nomecientifico: input.nomeCientifico,
+            nomeCientifico: input.nomeCientifico,
             descricao: input.descricao,
             fotoUrl: input.fotoUrl,
             latitude: String(input.latitude),

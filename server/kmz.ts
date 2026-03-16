@@ -65,7 +65,7 @@ export async function gerarKmz(res: Response): Promise<void> {
 
   // ── Árvores ───────────────────────────────────────────────────────────────
   for (const a of arvores) {
-    const nome = escapeXml(a.nomecientifico || "Árvore sem nome");
+    const nome = escapeXml(a.nomeCientifico || "Árvore sem nome");
     const desc = escapeXml(a.descricao || "");
     const irq = a.irqValor ? `IRQ: ${a.irqValor} (${escapeXml(a.irqClassificacao || "")})` : "";
     const fotoRef = registrarFoto(a.fotoUrl);

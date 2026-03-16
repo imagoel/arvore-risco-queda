@@ -26,7 +26,7 @@ export const arvores = mysqlTable("arvores", {
   id: int("id").autoincrement().primaryKey(),
   /** ID local gerado no app (UUID) para sincronização offline */
   localId: varchar("localId", { length: 64 }).notNull().unique(),
-  nomecientifico: varchar("nomeCientifico", { length: 255 }),
+  nomeCientifico: varchar("nomeCientifico", { length: 255 }),
   descricao: text("descricao"),
   /** URL da foto no S3 */
   fotoUrl: text("fotoUrl"),
