@@ -87,3 +87,6 @@
 - [x] Refatoração snake_case: casing: "snake_case" no db.ts + drizzle.config.ts, schema.ts sem strings de nome, migration 0003 aplicada (users + arvores + regioes), 109 testes passando, 0 erros TypeScript
 - [x] Auditoria mobile: todos os arquivos mobile usam nomeCientifico (camelCase) consistentemente — zero divergências
 - [x] Migrar irqParametros de text para json() nativo: IrqParametros interface no schema.ts, irqParametrosSchema no router, IrqParametros em sync.ts e use-network-sync.ts, objeto tipado (sem JSON.stringify) em mapa.native.tsx, ALTER TABLE aplicado no banco
+- [x] Corrigir lib/irq.ts: sinais das penalidades (+800), normalização irqNormalizado, novas faixas de classificação e pinColor; calcularRisco centralizada em lib/irq.ts (index.tsx e mapa.native.tsx importam de lá)
+- [x] Atualizar tests/irq.test.ts com novos valores esperados (21 testes irq + 23 testes mapa = 118 testes passando)
+- [x] Atualizar painel.html: filtros com novos nomes (Risco Muito Baixo/Risco Baixo/Alerta-Monitorar/Alerta-Supressão), RISK_COLORS atualizadas, exibição IRQ normalizado em %

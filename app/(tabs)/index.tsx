@@ -10,56 +10,10 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { ScreenContainer } from "@/components/screen-container";
-import { classifyRisk, formatIRQ } from "@/lib/irq";
+import { classifyRisk, formatIRQ, calcularRisco, type IRQFormState } from "@/lib/irq";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface FormState {
-  diametroCopa: string;
-  alturaGeral: string;
-  alturaRamificacao: string;
-  dap: string;
-  dcolo: string;
-  anguloInclinacao: string;
-  coloDiagnosticado: string;
-  ramificacaoV: boolean;
-  corpoFrutificacao: boolean;
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function parseNum(val: string): number {
-  const n = parseFloat(val.replace(",", "."));
-  return isNaN(n) ? 0 : n;
-}
-
-function calcularRisco(form: FormState): number {
-  const dc = parseNum(form.diametroCopa);
-  const ag = parseNum(form.alturaGeral);
-  const ar = parseNum(form.alturaRamificacao);
-  const dap = parseNum(form.dap);
-  const dcolo = parseNum(form.dcolo);
-  const ang = parseNum(form.anguloInclinacao);
-  // Colo Diagnosticado (Soma) — único campo que representa a soma dos 3 diagnósticos
-  const coloDiag = parseNum(form.coloDiagnosticado);
-  const rv = form.ramificacaoV ? 1 : 0;
-  const cf = form.corpoFrutificacao ? 1 : 0;
-
-  // IRQ = (((Ø copa² × π/4) × 0.5) × (Alt. Geral − Alt. Ramif.))
-  //       × ((DAP / DCOLO) × Ângulo × 1)
-  //       + (Colo Diag. × 800)
-  //       + (Ramif. V × −800)
-  //       + (Corpo Frutif. × −800)
-  const areaCopa = dc * dc * (Math.PI / 4);
-  const volumeCopa = areaCopa * 0.5 * (ag - ar);
-  const fatorDap = dcolo !== 0 ? (dap / dcolo) * ang * 1 : 0;
-  return (
-    volumeCopa * fatorDap +
-    coloDiag * 800 +
-    rv * -800 +
-    cf * -800
-  );
-}
+// FormState é o mesmo que IRQFormState exportado de lib/irq.ts
+type FormState = IRQFormState;
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -250,10 +204,10 @@ export default function HomeScreen() {
               Índice de Risco de Queda
             </Text>
             <Text style={[styles.resultIndex, { color: result.color }]}>
-              {formatIRQ(result.index)}
+              {result.normalized}%
             </Text>
             <View style={[styles.riskBadge, { backgroundColor: result.borderColor }]}>
-              <Text style={styles.riskBadgeText}>Risco {result.label}</Text>
+              <Text style={styles.riskBadgeText}>{result.label}</Text>
             </View>
           </View>
         )}

@@ -140,39 +140,67 @@ describe("Lógica de marcadores do mapa", () => {
 });
 
 describe("IRQ vinculado ao marcador", () => {
-  it("aplica risco Baixo (irq < 0) com pino verde", () => {
+  // Novas faixas (baseadas em IRQ normalizado 0–100):
+  //   0–25   → Risco Muito Baixo  (#4FC3F7)
+  //  26–50   → Risco Baixo        (#66BB6A)
+  //  51–75   → Alerta - Monitorar (#FFA726)
+  //  76–100  → Alerta - Supressão (#EF5350)
+
+  it("aplica Risco Muito Baixo (irq negativo) com pino azul claro", () => {
     const list = [makeMarker({ id: "1" })];
     const updated = applyIRQ(list, "1", -500);
-    expect(updated[0].riskLabel).toBe("Baixo");
-    expect(updated[0].riskColor).toBe("#16A34A");
+    expect(updated[0].riskLabel).toBe("Risco Muito Baixo");
+    expect(updated[0].riskColor).toBe("#4FC3F7");
     expect(updated[0].irq).toBe(-500);
   });
 
-  it("aplica risco Moderado (0 <= irq <= 5000) com pino amarelo", () => {
+  it("aplica Risco Muito Baixo (irq = 0, normalizado = 0) com pino azul claro", () => {
+    const list = [makeMarker({ id: "1" })];
+    const updated = applyIRQ(list, "1", 0);
+    expect(updated[0].riskLabel).toBe("Risco Muito Baixo");
+    expect(updated[0].riskColor).toBe("#4FC3F7");
+  });
+
+  it("aplica Risco Muito Baixo (irq = 2500, normalizado = 25) com pino azul claro", () => {
     const list = [makeMarker({ id: "1" })];
     const updated = applyIRQ(list, "1", 2500);
-    expect(updated[0].riskLabel).toBe("Moderado");
-    expect(updated[0].riskColor).toBe("#CA8A04");
+    expect(updated[0].riskLabel).toBe("Risco Muito Baixo");
+    expect(updated[0].riskColor).toBe("#4FC3F7");
   });
 
-  it("aplica risco Alto (5001 <= irq <= 15000) com pino laranja", () => {
+  it("aplica Risco Baixo (irq = 5000, normalizado = 50) com pino verde", () => {
+    const list = [makeMarker({ id: "1" })];
+    const updated = applyIRQ(list, "1", 5000);
+    expect(updated[0].riskLabel).toBe("Risco Baixo");
+    expect(updated[0].riskColor).toBe("#66BB6A");
+  });
+
+  it("aplica Alerta - Monitorar (irq = 7500, normalizado = 75) com pino laranja", () => {
+    const list = [makeMarker({ id: "1" })];
+    const updated = applyIRQ(list, "1", 7500);
+    expect(updated[0].riskLabel).toBe("Alerta - Monitorar Árvore");
+    expect(updated[0].riskColor).toBe("#FFA726");
+  });
+
+  it("aplica Alerta - Supressão (irq = 10000, normalizado = 100) com pino vermelho", () => {
     const list = [makeMarker({ id: "1" })];
     const updated = applyIRQ(list, "1", 10000);
-    expect(updated[0].riskLabel).toBe("Alto");
-    expect(updated[0].riskColor).toBe("#EA580C");
+    expect(updated[0].riskLabel).toBe("Alerta - Supressão da Árvore");
+    expect(updated[0].riskColor).toBe("#EF5350");
   });
 
-  it("aplica risco Muito Alto (irq > 15000) com pino vermelho", () => {
+  it("aplica Alerta - Supressão (irq > 10000, normalizado limitado em 100) com pino vermelho", () => {
     const list = [makeMarker({ id: "1" })];
-    const updated = applyIRQ(list, "1", 20000);
-    expect(updated[0].riskLabel).toBe("Muito Alto");
-    expect(updated[0].riskColor).toBe("#DC2626");
+    const updated = applyIRQ(list, "1", 50000);
+    expect(updated[0].riskLabel).toBe("Alerta - Supressão da Árvore");
+    expect(updated[0].riskColor).toBe("#EF5350");
   });
 
   it("não altera outros marcadores ao aplicar IRQ", () => {
     const list = [makeMarker({ id: "1" }), makeMarker({ id: "2" })];
     const updated = applyIRQ(list, "1", 8000);
-    expect(updated[0].riskLabel).toBe("Alto");
+    // irq 8000 → normalizado 80 → Alerta - Supressão da Árvore
+    expect(updated[0].riskLabel).toBe("Alerta - Supressão da Árvore");
     expect(updated[1].irq).toBeNull();
   });
 
@@ -183,28 +211,16 @@ describe("IRQ vinculado ao marcador", () => {
     expect(updated[0].fotoUri).toBe("file:///mango.jpg");
   });
 
-  it("limite de risco em irq = 0 é Moderado", () => {
+  it("limite de risco em irq = 2600 (normalizado 26) é Risco Baixo", () => {
     const list = [makeMarker({ id: "1" })];
-    const updated = applyIRQ(list, "1", 0);
-    expect(updated[0].riskLabel).toBe("Moderado");
+    const updated = applyIRQ(list, "1", 2600);
+    expect(updated[0].riskLabel).toBe("Risco Baixo");
   });
 
-  it("limite de risco em irq = 5000 é Moderado", () => {
+  it("limite de risco em irq = 7600 (normalizado 76) é Alerta - Supressão", () => {
     const list = [makeMarker({ id: "1" })];
-    const updated = applyIRQ(list, "1", 5000);
-    expect(updated[0].riskLabel).toBe("Moderado");
-  });
-
-  it("limite de risco em irq = 5001 é Alto", () => {
-    const list = [makeMarker({ id: "1" })];
-    const updated = applyIRQ(list, "1", 5001);
-    expect(updated[0].riskLabel).toBe("Alto");
-  });
-
-  it("limite de risco em irq = 15001 é Muito Alto", () => {
-    const list = [makeMarker({ id: "1" })];
-    const updated = applyIRQ(list, "1", 15001);
-    expect(updated[0].riskLabel).toBe("Muito Alto");
-    expect(updated[0].riskColor).toBe("#DC2626");
+    const updated = applyIRQ(list, "1", 7600);
+    expect(updated[0].riskLabel).toBe("Alerta - Supressão da Árvore");
+    expect(updated[0].riskColor).toBe("#EF5350");
   });
 });

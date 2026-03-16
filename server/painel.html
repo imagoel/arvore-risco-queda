@@ -216,10 +216,10 @@
     <!-- Filter bar (trees only) -->
     <div class="filter-bar" id="filter-bar">
       <button class="filter-chip active" onclick="setFilter('all', this)">Todos</button>
-      <button class="filter-chip" onclick="setFilter('Baixo', this)" style="border-color:#16A34A;color:#16A34A;">Baixo</button>
-      <button class="filter-chip" onclick="setFilter('Moderado', this)" style="border-color:#CA8A04;color:#CA8A04;">Moderado</button>
-      <button class="filter-chip" onclick="setFilter('Alto', this)" style="border-color:#EA580C;color:#EA580C;">Alto</button>
-      <button class="filter-chip" onclick="setFilter('Muito Alto', this)" style="border-color:#DC2626;color:#DC2626;">Muito Alto</button>
+      <button class="filter-chip" onclick="setFilter('Risco Muito Baixo', this)" style="border-color:#4FC3F7;color:#01579B;">Risco Muito Baixo</button>
+      <button class="filter-chip" onclick="setFilter('Risco Baixo', this)" style="border-color:#66BB6A;color:#1B5E20;">Risco Baixo</button>
+      <button class="filter-chip" onclick="setFilter('Alerta - Monitorar Árvore', this)" style="border-color:#FFA726;color:#E65100;">Alerta - Monitorar</button>
+      <button class="filter-chip" onclick="setFilter('Alerta - Supressão da Árvore', this)" style="border-color:#EF5350;color:#B71C1C;">Alerta - Supressão</button>
     </div>
 
     <!-- List -->
@@ -246,12 +246,17 @@ let selectedId = null;
 
 // ── Risk colors ───────────────────────────────────────────────────────────────
 const RISK_COLORS = {
-  'Baixo':      { pin: '#16A34A', bg: '#DCFCE7', text: '#15803D' },
-  'Moderado':   { pin: '#CA8A04', bg: '#FEF9C3', text: '#854D0E' },
-  'Alto':       { pin: '#EA580C', bg: '#FFEDD5', text: '#9A3412' },
-  'Muito Alto': { pin: '#DC2626', bg: '#FEE2E2', text: '#991B1B' },
-  'default':    { pin: '#2D6A4F', bg: '#D8F3DC', text: '#1A2E22' },
+  'Risco Muito Baixo':            { pin: '#4FC3F7', bg: '#E1F5FE', text: '#01579B' },
+  'Risco Baixo':                  { pin: '#66BB6A', bg: '#E8F5E9', text: '#1B5E20' },
+  'Alerta - Monitorar Árvore':    { pin: '#FFA726', bg: '#FFF3E0', text: '#E65100' },
+  'Alerta - Supressão da Árvore': { pin: '#EF5350', bg: '#FFEBEE', text: '#B71C1C' },
+  'default':                      { pin: '#2D6A4F', bg: '#D8F3DC', text: '#1A2E22' },
 };
+
+function irqNorm(irqValor) {
+  if (irqValor == null) return null;
+  return Math.min(Math.round((parseFloat(irqValor) / 10000) * 100), 100);
+}
 
 function getRiskColor(label) {
   return RISK_COLORS[label] || RISK_COLORS['default'];
@@ -290,7 +295,7 @@ function updateStats() {
   document.getElementById('stat-trees').textContent = allTrees.length;
   document.getElementById('stat-regions').textContent = allRegions.length;
   const highRisk = allTrees.filter(t =>
-    t.irqClassificacao === 'Alto' || t.irqClassificacao === 'Muito Alto'
+    t.irqClassificacao === 'Alerta - Monitorar Árvore' || t.irqClassificacao === 'Alerta - Supressão da Árvore'
   ).length;
   document.getElementById('stat-high-risk').textContent = highRisk;
 }
@@ -328,9 +333,8 @@ function renderSidebar() {
 
     container.innerHTML = filtered.map(tree => {
       const rc = getRiskColor(tree.irqClassificacao);
-      const irqText = tree.irqValor != null
-        ? `IRQ: ${parseFloat(tree.irqValor).toFixed(0)}`
-        : 'IRQ não calculado';
+      const norm = irqNorm(tree.irqValor);
+      const irqText = norm != null ? `IRQ: ${norm}%` : 'IRQ não calculado';
       const riskPill = tree.irqClassificacao
         ? `<span class="risk-pill" style="background:${rc.pin}">${tree.irqClassificacao}</span>`
         : '';
@@ -445,9 +449,8 @@ function buildTreeInfoWindow(tree) {
   const photo = tree.fotoUrl
     ? `<img src="${tree.fotoUrl.startsWith('/') ? window.__API_BASE__ + tree.fotoUrl : tree.fotoUrl}" style="width:100%;height:120px;object-fit:cover;border-radius:8px;margin-bottom:8px;" />`
     : '';
-  const irq = tree.irqValor != null
-    ? `<p><strong>IRQ:</strong> ${parseFloat(tree.irqValor).toFixed(0)}</p>`
-    : '';
+  const norm = irqNorm(tree.irqValor);
+  const irq = norm != null ? `<p><strong>IRQ:</strong> ${norm}%</p>` : '';
   const desc = tree.descricao
     ? `<p>${tree.descricao}</p>`
     : '';

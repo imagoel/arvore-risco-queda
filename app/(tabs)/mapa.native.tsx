@@ -20,7 +20,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenContainer } from "@/components/screen-container";
-import { classifyRisk, formatIRQ, type RiskResult } from "@/lib/irq";
+import { classifyRisk, formatIRQ, calcularRisco, type RiskResult, type IRQFormState } from "@/lib/irq";
 import { sincronizarArvore, sincronizarRegiao, deletarArvoreRemota, deletarRegiaoRemota } from "@/lib/sync";
 import type { IrqParametros } from "@/drizzle/schema";
 import { useNetworkSync, marcarArvorePendente, marcarRegiaoPendente, type SyncStatus } from "@/hooks/use-network-sync";
@@ -72,18 +72,6 @@ interface RegionModalState {
   editingId: string | null;
 }
 
-interface IRQFormState {
-  diametroCopa: string;
-  alturaGeral: string;
-  alturaRamificacao: string;
-  dap: string;
-  dcolo: string;
-  anguloInclinacao: string;
-  coloDiagnosticado: string;
-  ramificacaoV: boolean;
-  corpoFrutificacao: boolean;
-}
-
 // "tree" = placing tree markers, "polygon" = drawing polygon vertices, "none" = view only
 type MapMode = "tree" | "polygon" | "none";
 
@@ -108,22 +96,6 @@ const emptyIRQForm: IRQFormState = {
 function parseNum(val: string): number {
   const n = parseFloat(val.replace(",", "."));
   return isNaN(n) ? 0 : n;
-}
-
-function calcularRisco(form: IRQFormState): number {
-  const dc = parseNum(form.diametroCopa);
-  const ag = parseNum(form.alturaGeral);
-  const ar = parseNum(form.alturaRamificacao);
-  const dap = parseNum(form.dap);
-  const dcolo = parseNum(form.dcolo);
-  const ang = parseNum(form.anguloInclinacao);
-  const coloDiag = parseNum(form.coloDiagnosticado);
-  const rv = form.ramificacaoV ? 1 : 0;
-  const cf = form.corpoFrutificacao ? 1 : 0;
-  const areaCopa = dc * dc * (Math.PI / 4);
-  const volumeCopa = areaCopa * 0.5 * (ag - ar);
-  const fatorDap = dcolo !== 0 ? (dap / dcolo) * ang * 1 : 0;
-  return volumeCopa * fatorDap + coloDiag * 800 + rv * -800 + cf * -800;
 }
 
 /** Returns centroid of a polygon for label/tap detection */
@@ -911,10 +883,10 @@ export default function MapaScreen() {
           {selectedMarker.irq !== null && selectedMarker.riskLabel ? (
             <View style={[styles.riskBadgeContainer, { backgroundColor: classifyRisk(selectedMarker.irq).bgColor, borderColor: classifyRisk(selectedMarker.irq).borderColor }]}>
               <Text style={[styles.riskBadgeLabel, { color: classifyRisk(selectedMarker.irq).color }]}>
-                IRQ: {formatIRQ(selectedMarker.irq)}
+                IRQ: {classifyRisk(selectedMarker.irq).normalized}%
               </Text>
               <View style={[styles.riskBadgePill, { backgroundColor: classifyRisk(selectedMarker.irq).borderColor }]}>
-                <Text style={styles.riskBadgePillText}>Risco {selectedMarker.riskLabel}</Text>
+                <Text style={styles.riskBadgePillText}>{selectedMarker.riskLabel}</Text>
               </View>
             </View>
           ) : (
@@ -1197,9 +1169,9 @@ export default function MapaScreen() {
                 {irqResult && (
                   <View style={[irqStyles.resultCard, { backgroundColor: irqResult.bgColor, borderColor: irqResult.borderColor }]}>
                     <Text style={[irqStyles.resultLabel, { color: irqResult.color }]}>Índice de Risco de Queda</Text>
-                    <Text style={[irqStyles.resultIndex, { color: irqResult.color }]}>{formatIRQ(irqResult.index)}</Text>
+                    <Text style={[irqStyles.resultIndex, { color: irqResult.color }]}>{irqResult.normalized}%</Text>
                     <View style={[irqStyles.riskBadge, { backgroundColor: irqResult.borderColor }]}>
-                      <Text style={irqStyles.riskBadgeText}>Risco {irqResult.label}</Text>
+                      <Text style={irqStyles.riskBadgeText}>{irqResult.label}</Text>
                     </View>
                   </View>
                 )}
