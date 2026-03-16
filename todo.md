@@ -97,3 +97,4 @@
 - [x] Criar lib/carimbar-foto.ts com função carimbarFoto (carimbo inferior esquerdo: nome+IRQ; inferior direito: data+GPS)
 - [x] Integrar carimbarFoto no handleSaveIRQ do mapa.native.tsx (após cálculo IRQ, fallback para foto original)
 - [x] Criar tests/carimbar-foto.test.ts com 18 testes unitários (136 total, 0 erros TypeScript)
+- [x] Carimbo em dois momentos: IRQ opcional em DadosCarimbo, fotoOriginalUri preservada desde handleTakePhoto/handlePickGallery, carimbo básico (nome+GPS+data) no handleSaveMarker, carimbo completo (nome+IRQ+GPS+data) no handleSaveIRQ usando fotoOriginalUri como base (sem sobreposição). 136 testes, 0 erros TypeScript.

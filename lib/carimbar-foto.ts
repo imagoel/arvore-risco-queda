@@ -20,10 +20,16 @@ import Marker, { Position, TextBackgroundType, ImageFormat } from "react-native-
 export interface DadosCarimbo {
   /** Nome científico da árvore, ex: "Ficus benjamina" */
   nomeCientifico: string;
-  /** Valor normalizado do IRQ (0-100), ex: 42 */
-  irqNormalizado: number;
-  /** Classificação textual do risco, ex: "Risco Baixo" */
-  irqClassificacao: string;
+  /**
+   * Valor normalizado do IRQ (0-100), ex: 42.
+   * Opcional — quando ausente, o carimbo mostra apenas o nome (sem IRQ).
+   */
+  irqNormalizado?: number;
+  /**
+   * Classificação textual do risco, ex: "Risco Baixo".
+   * Opcional — usado apenas quando irqNormalizado está presente.
+   */
+  irqClassificacao?: string;
   /** Latitude decimal, ex: -13.0583 */
   latitude: number;
   /** Longitude decimal, ex: -39.6025 */
@@ -48,8 +54,11 @@ export async function carimbarFoto(
   const dataFormatada = formatarDataBR(agora);
   const coordenadas = `${dados.latitude.toFixed(4)},${dados.longitude.toFixed(4)}`;
 
-  // Inferior esquerdo: nome científico + IRQ
-  const textoEsquerdo = `${dados.nomeCientifico}\nIRQ: ${dados.irqNormalizado}% \u2014 ${dados.irqClassificacao}`;
+  // Inferior esquerdo: nome científico + IRQ (quando disponível)
+  // Se IRQ ainda não foi calculado, mostra apenas o nome da árvore.
+  const textoEsquerdo = dados.irqNormalizado != null
+    ? `${dados.nomeCientifico}\nIRQ: ${dados.irqNormalizado}% — ${dados.irqClassificacao ?? ""}`
+    : dados.nomeCientifico;
 
   // Inferior direito: data/hora + coordenadas GPS
   const textoDireito = `${dataFormatada}\n${coordenadas}`;

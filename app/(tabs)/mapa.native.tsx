@@ -39,7 +39,10 @@ export interface TreeMarker {
   longitude: number;
   nomeCientifico: string;
   descricao: string;
+  /** URI da foto com carimbo (parcial ou completo). Esta é a foto enviada ao servidor. */
   fotoUri: string | null;
+  /** URI da foto original sem nenhum carimbo. Usada como base para reaplicar o carimbo completo no handleSaveIRQ. */
+  fotoOriginalUri: string | null;
   criadoEm: string;
   irq: number | null;
   riskLabel: string | null;
@@ -62,6 +65,8 @@ interface MarkerModalState {
   nomeCientifico: string;
   descricao: string;
   fotoUri: string | null;
+  /** URI da foto original sem carimbo — preservada para reaplicar carimbo completo no handleSaveIRQ. */
+  fotoOriginalUri: string | null;
   editingId: string | null;
 }
 
@@ -165,7 +170,7 @@ export default function MapaScreen() {
   const [markers, setMarkers] = useState<TreeMarker[]>([]);
   const [selectedMarker, setSelectedMarker] = useState<TreeMarker | null>(null);
   const [markerModal, setMarkerModal] = useState<MarkerModalState>({
-    visible: false, latitude: 0, longitude: 0, nomeCientifico: "", descricao: "", fotoUri: null, editingId: null,
+    visible: false, latitude: 0, longitude: 0, nomeCientifico: "", descricao: "", fotoUri: null, fotoOriginalUri: null, editingId: null,
   });
 
   // Region polygons
@@ -256,12 +261,11 @@ export default function MapaScreen() {
     const result = await ImagePicker.launchCameraAsync({ allowsEditing: false, quality: 1.0, exif: false });
     if (!result.canceled) {
       const uri = result.assets[0].uri;
-      if (photoTarget === "tree") setMarkerModal((m) => ({ ...m, fotoUri: uri }));
+       if (photoTarget === "tree") setMarkerModal((m) => ({ ...m, fotoUri: uri, fotoOriginalUri: uri }));
       else setRegionModal((m) => ({ ...m, fotoUri: uri }));
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   }, [photoTarget]);
-
   const handlePickGallery = useCallback(async () => {
     setPhotoPickerVisible(false);
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -274,12 +278,11 @@ export default function MapaScreen() {
     });
     if (!result.canceled) {
       const uri = result.assets[0].uri;
-      if (photoTarget === "tree") setMarkerModal((m) => ({ ...m, fotoUri: uri }));
+       if (photoTarget === "tree") setMarkerModal((m) => ({ ...m, fotoUri: uri, fotoOriginalUri: uri }));
       else setRegionModal((m) => ({ ...m, fotoUri: uri }));
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   }, [photoTarget]);
-
   // ── Map press ───────────────────────────────────────────────────────────────
   const handleMapPress = useCallback((e: MapPressEvent) => {
     const { latitude, longitude } = e.nativeEvent.coordinate;
@@ -296,7 +299,7 @@ export default function MapaScreen() {
       setSelectedMarker(null);
       setSelectedRegion(null);
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      setMarkerModal({ visible: true, latitude, longitude, nomeCientifico: "", descricao: "", fotoUri: null, editingId: null });
+      setMarkerModal({ visible: true, latitude, longitude, nomeCientifico: "", descricao: "", fotoUri: null, fotoOriginalUri: null, editingId: null });
       return;
     }
 
@@ -338,26 +341,51 @@ export default function MapaScreen() {
         nomeCientifico: markerModal.nomeCientifico.trim(),
         descricao: markerModal.descricao.trim(),
         fotoUri: markerModal.fotoUri,
+        fotoOriginalUri: markerModal.fotoOriginalUri,
         criadoEm: new Date().toLocaleString("pt-BR"),
         irq: null, riskLabel: null, riskColor: null,
       };
       setMarkers((prev) => [...prev, savedMarker]);
     }
     setMarkerModal((m) => ({ ...m, visible: false }));
-
-    // Sincronizar com backend em background
     setSyncStatus("syncing");
-    sincronizarArvore({
-      id: savedMarker!.id,
-      nomeCientifico: savedMarker!.nomeCientifico,
-      descricao: savedMarker!.descricao,
-      fotoUri: savedMarker!.fotoUri ?? undefined,
-      latitude: savedMarker!.latitude,
-      longitude: savedMarker!.longitude,
-      irqValor: savedMarker!.irq ?? undefined,
-      irqClassificacao: savedMarker!.riskLabel ?? undefined,
-      pinColor: savedMarker!.riskColor ?? undefined,
-    }).then((ok) => {
+
+    // G2-A: Carimbo básico (nome + data/GPS) — IRQ ainda não existe neste momento.
+    // O carimbo completo (com IRQ) será reaplicado sobre fotoOriginalUri no handleSaveIRQ.
+    // Best-effort: falha no carimbo não interrompe o fluxo — usa foto original.
+    const salvarESync = async () => {
+      const marker = savedMarker!;
+      let fotoFinal = marker.fotoUri ?? undefined;
+      if (Platform.OS !== "web" && marker.fotoOriginalUri) {
+        try {
+          const fotoCarimbada = await carimbarFoto(marker.fotoOriginalUri, {
+            nomeCientifico: marker.nomeCientifico,
+            // sem irqNormalizado/irqClassificacao — ainda não calculados
+            latitude: marker.latitude,
+            longitude: marker.longitude,
+          });
+          fotoFinal = fotoCarimbada;
+          setMarkers((prev) =>
+            prev.map((m) => m.id === marker.id ? { ...m, fotoUri: fotoCarimbada } : m)
+          );
+        } catch (err) {
+          console.warn("[Carimbo] Falha no carimbo básico, usando foto original:", err);
+        }
+      }
+      return sincronizarArvore({
+        id: marker.id,
+        nomeCientifico: marker.nomeCientifico,
+        descricao: marker.descricao,
+        fotoUri: fotoFinal,
+        latitude: marker.latitude,
+        longitude: marker.longitude,
+        irqValor: marker.irq ?? undefined,
+        irqClassificacao: marker.riskLabel ?? undefined,
+        pinColor: marker.riskColor ?? undefined,
+      });
+    };
+
+    salvarESync().then((ok) => {
       if (!ok) {
         marcarArvorePendente(savedMarker!.id);
         setPendingCount((c) => c + 1);
@@ -372,7 +400,7 @@ export default function MapaScreen() {
 
   const handleEditMarker = useCallback((marker: TreeMarker) => {
     setSelectedMarker(null);
-    setMarkerModal({ visible: true, latitude: marker.latitude, longitude: marker.longitude, nomeCientifico: marker.nomeCientifico, descricao: marker.descricao, fotoUri: marker.fotoUri ?? null, editingId: marker.id });
+    setMarkerModal({ visible: true, latitude: marker.latitude, longitude: marker.longitude, nomeCientifico: marker.nomeCientifico, descricao: marker.descricao, fotoUri: marker.fotoUri ?? null, fotoOriginalUri: marker.fotoOriginalUri ?? null, editingId: marker.id });
   }, []);
 
   const handleDeleteMarker = useCallback((id: string) => {
@@ -532,9 +560,12 @@ export default function MapaScreen() {
       // Em caso de falha do carimbo, usa a foto original como fallback.
       const aplicarCarimboESync = async () => {
         let fotoFinal = markerParaSync.fotoUri ?? undefined;
-        if (Platform.OS !== "web" && markerParaSync.fotoUri) {
+        // G2-B: Usa fotoOriginalUri como base para evitar sobreposição de carimbos.
+        // Se não houver original (foto adicionada antes desta versão), usa fotoUri como fallback.
+        const baseParaCarimbo = markerParaSync.fotoOriginalUri ?? markerParaSync.fotoUri;
+        if (Platform.OS !== "web" && baseParaCarimbo) {
           try {
-            const fotoCarimbada = await carimbarFoto(markerParaSync.fotoUri, {
+            const fotoCarimbada = await carimbarFoto(baseParaCarimbo, {
               nomeCientifico: markerParaSync.nomeCientifico,
               irqNormalizado: irqResult.normalized,
               irqClassificacao: irqResult.label,
