@@ -109,9 +109,9 @@ async function startServer() {
   });
 
   // Rota de exportação KMZ
-  app.get("/api/kmz", async (_req, res) => {
+  app.get("/api/kmz", async (req, res) => {
     try {
-      await gerarKmz(res);
+      await gerarKmz(req, res);
     } catch (err) {
       console.error("[kmz] erro ao gerar:", err);
       if (!res.headersSent) {

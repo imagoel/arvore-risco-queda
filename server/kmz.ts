@@ -36,8 +36,26 @@ function hexToKmlColor(hex: string, alpha = "ff"): string {
   return `${alpha}${b}${g}${r}`;
 }
 
+/** Extrai a URL base do servidor a partir do request (mesmo algoritmo do painel) */
+function getApiBase(req: import("express").Request): string {
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const forwardedHost  = req.headers["x-forwarded-host"];
+  const directHost     = req.headers.host;
+  const envUrl         = process.env.PUBLIC_URL;
+  const port           = process.env.PORT ?? "3000";
+  if (forwardedProto && forwardedHost) {
+    const proto = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto;
+    const host  = Array.isArray(forwardedHost)  ? forwardedHost[0]  : forwardedHost;
+    return `${proto}://${host}`;
+  }
+  if (directHost) return `${req.protocol}://${directHost}`;
+  if (envUrl) return envUrl.replace(/\/$/, "");
+  return `http://127.0.0.1:${port}`;
+}
+
 /** Gera o KML e compacta em .kmz, enviando diretamente para o response */
-export async function gerarKmz(res: Response): Promise<void> {
+export async function gerarKmz(req: import("express").Request, res: Response): Promise<void> {
+  const apiBase = getApiBase(req);
   const [arvores, regioes] = await Promise.all([
     db.listarArvores(),
     db.listarRegioes(),
@@ -48,16 +66,20 @@ export async function gerarKmz(res: Response): Promise<void> {
   const fotosAnexadas = new Map<string, string>(); // url → caminho local
 
   // Helper para registrar foto local
+  // Prioridade: 1) arquivo local embutido no ZIP, 2) URL absoluta do servidor, 3) URL externa
   function registrarFoto(fotoUrl: string | null | undefined): string | null {
     if (!fotoUrl) return null;
-    // fotoUrl pode ser /uploads/arvores/abc.jpg ou URL S3 (fallback)
     if (fotoUrl.startsWith("/uploads/")) {
       const localPath = path.join(UPLOADS_DIR, fotoUrl.replace("/uploads/", ""));
       if (fs.existsSync(localPath)) {
+        // Arquivo existe no disco: embute no ZIP para acesso offline
         const kmzPath = `files${fotoUrl}`; // ex: files/uploads/arvores/abc.jpg
         fotosAnexadas.set(kmzPath, localPath);
         return kmzPath;
       }
+      // Arquivo não existe localmente (container reiniciado, etc.):
+      // usa URL absoluta para que o Google Earth busque via HTTP quando online
+      return `${apiBase}${fotoUrl}`;
     }
     // URL externa (S3 ou outra): referencia diretamente no KML
     return fotoUrl;
@@ -67,7 +89,8 @@ export async function gerarKmz(res: Response): Promise<void> {
   for (const a of arvores) {
     const nome = escapeXml(a.nomeCientifico || "Árvore sem nome");
     const desc = escapeXml(a.descricao || "");
-    const irq = a.irqValor ? `IRQ: ${a.irqValor} (${escapeXml(a.irqClassificacao || "")})` : "";
+    const norm = a.irqValor ? Math.min(Math.round((parseFloat(String(a.irqValor)) / 10000) * 100), 100) : null;
+    const irq = norm != null ? `IRQ: ${norm}% — ${escapeXml(a.irqClassificacao || "")}` : "";
     const fotoRef = registrarFoto(a.fotoUrl);
     const fotoTag = fotoRef ? `<img src="${escapeXml(fotoRef)}" width="400"/><br/>` : "";
     const pinColor = hexToKmlColor(a.pinColor || "#22c55e");
@@ -75,7 +98,7 @@ export async function gerarKmz(res: Response): Promise<void> {
     placemarks.push(`
     <Placemark>
       <name>${nome}</name>
-      <description><![CDATA[${fotoTag}${desc}<br/>${irq}]]></description>
+      <description><![CDATA[${fotoTag}${desc ? `<p>${desc}</p>` : ""}${irq ? `<p><b>${irq}</b></p>` : ""}]]></description>
       <Style>
         <IconStyle>
           <color>${pinColor}</color>

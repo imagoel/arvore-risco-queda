@@ -90,3 +90,6 @@
 - [x] Corrigir lib/irq.ts: sinais das penalidades (+800), normalização irqNormalizado, novas faixas de classificação e pinColor; calcularRisco centralizada em lib/irq.ts (index.tsx e mapa.native.tsx importam de lá)
 - [x] Atualizar tests/irq.test.ts com novos valores esperados (21 testes irq + 23 testes mapa = 118 testes passando)
 - [x] Atualizar painel.html: filtros com novos nomes (Risco Muito Baixo/Risco Baixo/Alerta-Monitorar/Alerta-Supressão), RISK_COLORS atualizadas, exibição IRQ normalizado em %
+- [x] Bug: foto não carrega no painel web — onerror placeholder nos cards e info-window (arquivo ausente no disco do sandbox)
+- [x] Bug: imagem ausente no KMZ via painel — kmz.ts agora usa URL absoluta do servidor quando arquivo local não existe
+- [x] Bug: descrição cortada no KMZ mobile — CDATA reestruturado com tags <p> e IRQ normalizado em %
