@@ -64,7 +64,12 @@ async function startServer() {
   // Painel administrativo web
   app.get("/painel", (req, res) => {
     try {
-      const htmlPath = path.resolve(__dirname, "../painel.html");
+      // Funciona tanto em dev (tsx watch, __dirname = server/_core/) quanto em produção
+      // (esbuild → dist/index.js, __dirname = dist/). O script build copia painel.html para dist/.
+      let htmlPath = path.resolve(__dirname, "../painel.html");
+      if (!fs.existsSync(htmlPath)) {
+        htmlPath = path.resolve(__dirname, "painel.html");
+      }
       let html = fs.readFileSync(htmlPath, "utf-8");
       // Injeta a chave da Google Maps API (se configurada)
       const gmapsKey = process.env.GOOGLE_MAPS_API_KEY ?? "";
