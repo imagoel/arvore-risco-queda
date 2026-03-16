@@ -86,3 +86,4 @@
 - [x] Corrigir nomecientifico no kmz.ts e routers.ts (2 ocorrências cada)
 - [x] Refatoração snake_case: casing: "snake_case" no db.ts + drizzle.config.ts, schema.ts sem strings de nome, migration 0003 aplicada (users + arvores + regioes), 109 testes passando, 0 erros TypeScript
 - [x] Auditoria mobile: todos os arquivos mobile usam nomeCientifico (camelCase) consistentemente — zero divergências
+- [x] Migrar irqParametros de text para json() nativo: IrqParametros interface no schema.ts, irqParametrosSchema no router, IrqParametros em sync.ts e use-network-sync.ts, objeto tipado (sem JSON.stringify) em mapa.native.tsx, ALTER TABLE aplicado no banco

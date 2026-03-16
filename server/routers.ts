@@ -34,7 +34,7 @@ const arvoreInputSchema = z.object({
   longitude: z.number(),
   irqValor: z.number().optional(),
   irqClassificacao: z.string().optional(),
-  irqParametros: z.string().optional(),
+  irqParametros: irqParametrosSchema,
   pinColor: z.string().optional(),
 });
 

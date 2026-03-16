@@ -1,6 +1,22 @@
 import { decimal, int, json, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
+ * Parâmetros do formulário IRQ armazenados como JSON nativo no MySQL.
+ * Os campos numéricos são convertidos de string (input do formulário) para number antes do envio.
+ */
+export interface IrqParametros {
+  diametroCopa?: number;
+  alturaGeral?: number;
+  alturaRamificacao?: number;
+  dap?: number;
+  dcolo?: number;
+  anguloInclinacao?: number;
+  coloDiagnosticado?: number;
+  ramificacaoV?: boolean;
+  corpoFrutificacao?: boolean;
+}
+
+/**
  * Core user table backing auth flow.
  * Colunas físicas no MySQL: open_id, login_method, created_at, updated_at, last_signed_in
  * (convertidas automaticamente pelo Drizzle com casing: "snake_case")
@@ -40,8 +56,8 @@ export const arvores = mysqlTable("arvores", {
   /** Dados do cálculo IRQ */
   irqValor: decimal({ precision: 10, scale: 2 }),
   irqClassificacao: varchar({ length: 20 }),
-  /** Parâmetros do cálculo IRQ (JSON serializado como string) */
-  irqParametros: text(),
+  /** Parâmetros do cálculo IRQ em JSON nativo do MySQL */
+  irqParametros: json().$type<IrqParametros>(),
   /** Cor do pino no mapa (hex) */
   pinColor: varchar({ length: 20 }),
   createdAt: timestamp().defaultNow().notNull(),

@@ -7,6 +7,7 @@ import { createTRPCClient, httpBatchLink } from "@trpc/client";
 import superjson from "superjson";
 import * as FileSystem from "expo-file-system/legacy";
 import type { AppRouter } from "@/server/routers";
+import type { IrqParametros } from "@/drizzle/schema";
 import { getApiBaseUrl } from "@/constants/oauth";
 import * as Auth from "@/lib/_core/auth";
 
@@ -19,7 +20,7 @@ export interface ArvoreLocal {
   longitude: number;
   irqValor?: number;
   irqClassificacao?: string;
-  irqParametros?: string;
+  irqParametros?: IrqParametros;
   pinColor?: string;
 }
 

@@ -22,6 +22,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenContainer } from "@/components/screen-container";
 import { classifyRisk, formatIRQ, type RiskResult } from "@/lib/irq";
 import { sincronizarArvore, sincronizarRegiao, deletarArvoreRemota, deletarRegiaoRemota } from "@/lib/sync";
+import type { IrqParametros } from "@/drizzle/schema";
 import { useNetworkSync, marcarArvorePendente, marcarRegiaoPendente, type SyncStatus } from "@/hooks/use-network-sync";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
@@ -559,7 +560,17 @@ export default function MapaScreen() {
         longitude: updatedMarker.longitude,
         irqValor: irqResult.index,
         irqClassificacao: irqResult.label,
-        irqParametros: JSON.stringify(irqForm),
+        irqParametros: {
+          diametroCopa: parseNum(irqForm.diametroCopa) || undefined,
+          alturaGeral: parseNum(irqForm.alturaGeral) || undefined,
+          alturaRamificacao: parseNum(irqForm.alturaRamificacao) || undefined,
+          dap: parseNum(irqForm.dap) || undefined,
+          dcolo: parseNum(irqForm.dcolo) || undefined,
+          anguloInclinacao: parseNum(irqForm.anguloInclinacao) || undefined,
+          coloDiagnosticado: parseNum(irqForm.coloDiagnosticado) || undefined,
+          ramificacaoV: irqForm.ramificacaoV || undefined,
+          corpoFrutificacao: irqForm.corpoFrutificacao || undefined,
+        } satisfies IrqParametros,
         pinColor: irqResult.pinColor,
       }).then((ok) => {
         if (!ok) {

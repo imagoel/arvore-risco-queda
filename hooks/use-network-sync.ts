@@ -11,6 +11,7 @@ import { useEffect, useRef, useCallback } from "react";
 import * as Network from "expo-network";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { sincronizarArvore, sincronizarRegiao, type ArvoreLocal, type RegiaoLocal } from "@/lib/sync";
+import type { IrqParametros } from "@/drizzle/schema";
 import { notificarSyncConcluido, notificarSyncParcial } from "@/lib/notifications";
 
 // Chaves de storage compartilhadas com mapa.native.tsx
@@ -178,7 +179,7 @@ export function useNetworkSync({ onStatusChange, onPendingCountChange }: UseNetw
             irq?: number | null;
             riskLabel?: string | null;
             riskColor?: string | null;
-            irqParametros?: string;
+            irqParametros?: IrqParametros;
           }>).map((m) => ({
             id: m.id,
             nomeCientifico: m.nomeCientifico,
