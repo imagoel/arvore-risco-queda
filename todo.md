@@ -93,3 +93,7 @@
 - [x] Bug: foto não carrega no painel web — onerror placeholder nos cards e info-window (arquivo ausente no disco do sandbox)
 - [x] Bug: imagem ausente no KMZ via painel — kmz.ts agora usa URL absoluta do servidor quando arquivo local não existe
 - [x] Bug: descrição cortada no KMZ mobile — CDATA reestruturado com tags <p> e IRQ normalizado em %
+- [x] Instalar react-native-image-marker v1.2.11
+- [x] Criar lib/carimbar-foto.ts com função carimbarFoto (carimbo inferior esquerdo: nome+IRQ; inferior direito: data+GPS)
+- [x] Integrar carimbarFoto no handleSaveIRQ do mapa.native.tsx (após cálculo IRQ, fallback para foto original)
+- [x] Criar tests/carimbar-foto.test.ts com 18 testes unitários (136 total, 0 erros TypeScript)

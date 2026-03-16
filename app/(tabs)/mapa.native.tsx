@@ -27,6 +27,7 @@ import { useNetworkSync, marcarArvorePendente, marcarRegiaoPendente, type SyncSt
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { getApiBaseUrl } from "@/constants/oauth";
+import { carimbarFoto } from "@/lib/carimbar-foto";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -522,36 +523,66 @@ export default function MapaScreen() {
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     // Sincronizar IRQ atualizado com backend
     if (updatedMarker) {
+      const markerParaSync = updatedMarker;
       setSyncStatus("syncing");
-      sincronizarArvore({
-        id: updatedMarker.id,
-        nomeCientifico: updatedMarker.nomeCientifico,
-        descricao: updatedMarker.descricao,
-        fotoUri: updatedMarker.fotoUri ?? undefined,
-        latitude: updatedMarker.latitude,
-        longitude: updatedMarker.longitude,
-        irqValor: irqResult.index,
-        irqClassificacao: irqResult.label,
-        irqParametros: {
-          diametroCopa: parseNum(irqForm.diametroCopa) || undefined,
-          alturaGeral: parseNum(irqForm.alturaGeral) || undefined,
-          alturaRamificacao: parseNum(irqForm.alturaRamificacao) || undefined,
-          dap: parseNum(irqForm.dap) || undefined,
-          dcolo: parseNum(irqForm.dcolo) || undefined,
-          anguloInclinacao: parseNum(irqForm.anguloInclinacao) || undefined,
-          coloDiagnosticado: parseNum(irqForm.coloDiagnosticado) || undefined,
-          ramificacaoV: irqForm.ramificacaoV || undefined,
-          corpoFrutificacao: irqForm.corpoFrutificacao || undefined,
-        } satisfies IrqParametros,
-        pinColor: irqResult.pinColor,
-      }).then((ok) => {
+
+      // G2: Aplicar carimbo de dados na foto antes de sincronizar.
+      // O carimbo é aplicado após o cálculo do IRQ pois é o único momento
+      // em que todos os dados (nome, IRQ, coordenadas) estão disponíveis.
+      // Em caso de falha do carimbo, usa a foto original como fallback.
+      const aplicarCarimboESync = async () => {
+        let fotoFinal = markerParaSync.fotoUri ?? undefined;
+        if (Platform.OS !== "web" && markerParaSync.fotoUri) {
+          try {
+            const fotoCarimbada = await carimbarFoto(markerParaSync.fotoUri, {
+              nomeCientifico: markerParaSync.nomeCientifico,
+              irqNormalizado: irqResult.normalized,
+              irqClassificacao: irqResult.label,
+              latitude: markerParaSync.latitude,
+              longitude: markerParaSync.longitude,
+            });
+            fotoFinal = fotoCarimbada;
+            // Atualiza o marcador no estado com a foto carimbada
+            setMarkers((prev) =>
+              prev.map((m) => m.id === markerParaSync.id ? { ...m, fotoUri: fotoCarimbada } : m)
+            );
+          } catch (err) {
+            // Falha silenciosa: carimbo é best-effort, foto original é usada
+            console.warn("[Carimbo] Falha ao carimbar foto, usando original:", err);
+          }
+        }
+        return sincronizarArvore({
+          id: markerParaSync.id,
+          nomeCientifico: markerParaSync.nomeCientifico,
+          descricao: markerParaSync.descricao,
+          fotoUri: fotoFinal,
+          latitude: markerParaSync.latitude,
+          longitude: markerParaSync.longitude,
+          irqValor: irqResult.index,
+          irqClassificacao: irqResult.label,
+          irqParametros: {
+            diametroCopa: parseNum(irqForm.diametroCopa) || undefined,
+            alturaGeral: parseNum(irqForm.alturaGeral) || undefined,
+            alturaRamificacao: parseNum(irqForm.alturaRamificacao) || undefined,
+            dap: parseNum(irqForm.dap) || undefined,
+            dcolo: parseNum(irqForm.dcolo) || undefined,
+            anguloInclinacao: parseNum(irqForm.anguloInclinacao) || undefined,
+            coloDiagnosticado: parseNum(irqForm.coloDiagnosticado) || undefined,
+            ramificacaoV: irqForm.ramificacaoV || undefined,
+            corpoFrutificacao: irqForm.corpoFrutificacao || undefined,
+          } satisfies IrqParametros,
+          pinColor: irqResult.pinColor,
+        });
+      };
+
+      aplicarCarimboESync().then((ok) => {
         if (!ok) {
-          marcarArvorePendente(updatedMarker!.id);
+          marcarArvorePendente(markerParaSync.id);
           setPendingCount((c) => c + 1);
         }
         setSyncStatus(ok ? "ok" : "error");
       }).catch(() => {
-        marcarArvorePendente(updatedMarker!.id);
+        marcarArvorePendente(markerParaSync.id);
         setPendingCount((c) => c + 1);
         setSyncStatus("error");
       });
