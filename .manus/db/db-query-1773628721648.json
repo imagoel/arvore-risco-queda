@@ -1,0 +1,170 @@
+{
+  "query": "SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE\nFROM INFORMATION_SCHEMA.COLUMNS\nWHERE TABLE_SCHEMA = DATABASE()\n  AND TABLE_NAME IN ('users', 'arvores', 'regioes')\nORDER BY TABLE_NAME, ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4RtGgCShHbxk5qV.root --database THps8jiAfWDRzfKXG2S5Rn --execute SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE\nFROM INFORMATION_SCHEMA.COLUMNS\nWHERE TABLE_SCHEMA = DATABASE()\n  AND TABLE_NAME IN ('users', 'arvores', 'regioes')\nORDER BY TABLE_NAME, ORDINAL_POSITION;",
+  "rows": [
+    {
+      "TABLE_NAME": "arvores",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "int"
+    },
+    {
+      "TABLE_NAME": "arvores",
+      "COLUMN_NAME": "local_id",
+      "COLUMN_TYPE": "varchar(64)"
+    },
+    {
+      "TABLE_NAME": "arvores",
+      "COLUMN_NAME": "nome_cientifico",
+      "COLUMN_TYPE": "varchar(255)"
+    },
+    {
+      "TABLE_NAME": "arvores",
+      "COLUMN_NAME": "descricao",
+      "COLUMN_TYPE": "text"
+    },
+    {
+      "TABLE_NAME": "arvores",
+      "COLUMN_NAME": "foto_url",
+      "COLUMN_TYPE": "text"
+    },
+    {
+      "TABLE_NAME": "arvores",
+      "COLUMN_NAME": "latitude",
+      "COLUMN_TYPE": "decimal(10,7)"
+    },
+    {
+      "TABLE_NAME": "arvores",
+      "COLUMN_NAME": "longitude",
+      "COLUMN_TYPE": "decimal(10,7)"
+    },
+    {
+      "TABLE_NAME": "arvores",
+      "COLUMN_NAME": "irq_valor",
+      "COLUMN_TYPE": "decimal(10,2)"
+    },
+    {
+      "TABLE_NAME": "arvores",
+      "COLUMN_NAME": "irq_classificacao",
+      "COLUMN_TYPE": "varchar(20)"
+    },
+    {
+      "TABLE_NAME": "arvores",
+      "COLUMN_NAME": "irq_parametros",
+      "COLUMN_TYPE": "text"
+    },
+    {
+      "TABLE_NAME": "arvores",
+      "COLUMN_NAME": "pin_color",
+      "COLUMN_TYPE": "varchar(20)"
+    },
+    {
+      "TABLE_NAME": "arvores",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "timestamp"
+    },
+    {
+      "TABLE_NAME": "arvores",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "timestamp"
+    },
+    {
+      "TABLE_NAME": "regioes",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "int"
+    },
+    {
+      "TABLE_NAME": "regioes",
+      "COLUMN_NAME": "local_id",
+      "COLUMN_TYPE": "varchar(64)"
+    },
+    {
+      "TABLE_NAME": "regioes",
+      "COLUMN_NAME": "titulo",
+      "COLUMN_TYPE": "varchar(255)"
+    },
+    {
+      "TABLE_NAME": "regioes",
+      "COLUMN_NAME": "descricao",
+      "COLUMN_TYPE": "text"
+    },
+    {
+      "TABLE_NAME": "regioes",
+      "COLUMN_NAME": "foto_url",
+      "COLUMN_TYPE": "text"
+    },
+    {
+      "TABLE_NAME": "regioes",
+      "COLUMN_NAME": "coordenadas",
+      "COLUMN_TYPE": "json"
+    },
+    {
+      "TABLE_NAME": "regioes",
+      "COLUMN_NAME": "centro_lat",
+      "COLUMN_TYPE": "decimal(10,7)"
+    },
+    {
+      "TABLE_NAME": "regioes",
+      "COLUMN_NAME": "centro_lng",
+      "COLUMN_TYPE": "decimal(10,7)"
+    },
+    {
+      "TABLE_NAME": "regioes",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "timestamp"
+    },
+    {
+      "TABLE_NAME": "regioes",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "timestamp"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "int"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "open_id",
+      "COLUMN_TYPE": "varchar(64)"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "text"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "email",
+      "COLUMN_TYPE": "varchar(320)"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "login_method",
+      "COLUMN_TYPE": "varchar(64)"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "role",
+      "COLUMN_TYPE": "enum('user','admin')"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "timestamp"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "timestamp"
+    },
+    {
+      "TABLE_NAME": "users",
+      "COLUMN_NAME": "last_signed_in",
+      "COLUMN_TYPE": "timestamp"
+    }
+  ],
+  "messages": [],
+  "stdout": "TABLE_NAME\tCOLUMN_NAME\tCOLUMN_TYPE\narvores\tid\tint\narvores\tlocal_id\tvarchar(64)\narvores\tnome_cientifico\tvarchar(255)\narvores\tdescricao\ttext\narvores\tfoto_url\ttext\narvores\tlatitude\tdecimal(10,7)\narvores\tlongitude\tdecimal(10,7)\narvores\tirq_valor\tdecimal(10,2)\narvores\tirq_classificacao\tvarchar(20)\narvores\tirq_parametros\ttext\narvores\tpin_color\tvarchar(20)\narvores\tcreated_at\ttimestamp\narvores\tupdated_at\ttimestamp\nregioes\tid\tint\nregioes\tlocal_id\tvarchar(64)\nregioes\ttitulo\tvarchar(255)\nregioes\tdescricao\ttext\nregioes\tfoto_url\ttext\nregioes\tcoordenadas\tjson\nregioes\tcentro_lat\tdecimal(10,7)\nregioes\tcentro_lng\tdecimal(10,7)\nregioes\tcreated_at\ttimestamp\nregioes\tupdated_at\ttimestamp\nusers\tid\tint\nusers\topen_id\tvarchar(64)\nusers\tname\ttext\nusers\temail\tvarchar(320)\nusers\tlogin_method\tvarchar(64)\nusers\trole\tenum('user','admin')\nusers\tcreated_at\ttimestamp\nusers\tupdated_at\ttimestamp\nusers\tlast_signed_in\ttimestamp\n",
+  "stderr": "",
+  "execution_time_ms": 59
+}

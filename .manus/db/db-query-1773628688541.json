@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `users`\n  RENAME COLUMN `openId`       TO `open_id`,\n  RENAME COLUMN `loginMethod`  TO `login_method`,\n  RENAME COLUMN `createdAt`    TO `created_at`,\n  RENAME COLUMN `updatedAt`    TO `updated_at`,\n  RENAME COLUMN `lastSignedIn` TO `last_signed_in`;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4RtGgCShHbxk5qV.root --database THps8jiAfWDRzfKXG2S5Rn --execute ALTER TABLE `users`\n  RENAME COLUMN `openId`       TO `open_id`,\n  RENAME COLUMN `loginMethod`  TO `login_method`,\n  RENAME COLUMN `createdAt`    TO `created_at`,\n  RENAME COLUMN `updatedAt`    TO `updated_at`,\n  RENAME COLUMN `lastSignedIn` TO `last_signed_in`;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 611
+}

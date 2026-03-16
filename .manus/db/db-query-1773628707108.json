@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `regioes`\n  RENAME COLUMN `localId`   TO `local_id`,\n  RENAME COLUMN `fotoUrl`   TO `foto_url`,\n  RENAME COLUMN `centroLat` TO `centro_lat`,\n  RENAME COLUMN `centroLng` TO `centro_lng`,\n  RENAME COLUMN `createdAt` TO `created_at`,\n  RENAME COLUMN `updatedAt` TO `updated_at`;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4RtGgCShHbxk5qV.root --database THps8jiAfWDRzfKXG2S5Rn --execute ALTER TABLE `regioes`\n  RENAME COLUMN `localId`   TO `local_id`,\n  RENAME COLUMN `fotoUrl`   TO `foto_url`,\n  RENAME COLUMN `centroLat` TO `centro_lat`,\n  RENAME COLUMN `centroLng` TO `centro_lng`,\n  RENAME COLUMN `createdAt` TO `created_at`,\n  RENAME COLUMN `updatedAt` TO `updated_at`;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 240
+}

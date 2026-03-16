@@ -84,4 +84,5 @@
 - [x] Correção cirúrgica: nome JS nomecientifico → nomeCientifico no schema.ts (sem migration SQL necessária)
 - [x] Reverter fix manual de nomecientifico no painel.html — 3 ocorrências voltaram para nomeCientifico
 - [x] Corrigir nomecientifico no kmz.ts e routers.ts (2 ocorrências cada)
-- [ ] Backlog: refatoração snake_case (foto_url, local_id etc.) — tarefa planejada antes do deploy em produção
+- [x] Refatoração snake_case: casing: "snake_case" no db.ts + drizzle.config.ts, schema.ts sem strings de nome, migration 0003 aplicada (users + arvores + regioes), 109 testes passando, 0 erros TypeScript
+- [x] Auditoria mobile: todos os arquivos mobile usam nomeCientifico (camelCase) consistentemente — zero divergências
