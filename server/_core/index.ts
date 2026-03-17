@@ -4,12 +4,19 @@ import { createServer } from "http";
 import net from "net";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerUploadRoutes } from "../upload-local";
 import { gerarKmz } from "../kmz";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+
+// Compatibilidade ESM: __dirname não existe em ES Modules puros.
+// O esbuild compila com --format=esm, então import.meta.url está disponível.
+// Em dev (tsx watch) isso também funciona corretamente.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -64,11 +71,15 @@ async function startServer() {
   // Painel administrativo web
   app.get("/painel", (req, res) => {
     try {
-      // Funciona tanto em dev (tsx watch, __dirname = server/_core/) quanto em produção
-      // (esbuild → dist/index.js, __dirname = dist/). O script build copia painel.html para dist/.
-      let htmlPath = path.resolve(__dirname, "../painel.html");
+      // Em produção (esbuild ESM → dist/index.js), __dirname = dist/
+      // O script build copia painel.html para dist/, então tentamos dist/painel.html primeiro.
+      // Em dev (tsx watch), __dirname = server/_core/, então tentamos ../painel.html.
+      let htmlPath = path.resolve(__dirname, "painel.html");
       if (!fs.existsSync(htmlPath)) {
-        htmlPath = path.resolve(__dirname, "painel.html");
+        htmlPath = path.resolve(__dirname, "../painel.html");
+      }
+      if (!fs.existsSync(htmlPath)) {
+        htmlPath = path.resolve(process.cwd(), "dist", "painel.html");
       }
       let html = fs.readFileSync(htmlPath, "utf-8");
       // Injeta a chave da Google Maps API (se configurada)
