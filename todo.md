@@ -101,3 +101,4 @@
 - [x] Fix path painel.html: fallback fs.existsSync em index.ts (dev: ../painel.html, prod: painel.html) + cp server/painel.html dist/painel.html no script build. pnpm build gera dist/index.js + dist/painel.html. 136 testes, 0 erros TypeScript.
 - [x] Bug 1: carimbarFoto normaliza retorno do react-native-image-marker para file:// (3 linhas em lib/carimbar-foto.ts)
 - [x] Bug 2: sincronizarArvore retorna { ok, fotoUrl }; mapa.native.tsx e use-network-sync.ts atualizam AsyncStorage com URL do servidor após G1 apagar arquivo local; resolverFotoUri monta URL absoluta para /uploads/... 136 testes, 0 erros TypeScript.
+- [x] Bug crítico: foto não carregava porque EXPO_PUBLIC_API_BASE_URL não estava configurado — app Android fazia fetch("/api/upload") contra si mesmo. Configurado com https://3000-idckihbhx37s5cpv0fkjm-6ccae501.us2.manus.computer. Upload testado via curl: 200 OK. 136 testes, 0 erros TypeScript.
