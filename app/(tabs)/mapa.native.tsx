@@ -21,7 +21,7 @@ import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ScreenContainer } from "@/components/screen-container";
 import { classifyRisk, formatIRQ, calcularRisco, type RiskResult, type IRQFormState } from "@/lib/irq";
-import { sincronizarArvore, sincronizarRegiao, deletarArvoreRemota, deletarRegiaoRemota } from "@/lib/sync";
+import { sincronizarArvore, sincronizarRegiao, deletarArvoreRemota, deletarRegiaoRemota, resolverFotoUri } from "@/lib/sync";
 import type { IrqParametros } from "@/drizzle/schema";
 import { useNetworkSync, marcarArvorePendente, marcarRegiaoPendente, type SyncStatus } from "@/hooks/use-network-sync";
 import * as Sharing from "expo-sharing";
@@ -385,12 +385,21 @@ export default function MapaScreen() {
       });
     };
 
-    salvarESync().then((ok) => {
-      if (!ok) {
+    salvarESync().then((result) => {
+      if (!result.ok) {
         marcarArvorePendente(savedMarker!.id);
         setPendingCount((c) => c + 1);
+      } else if (result.fotoUrl) {
+        // G1 apagou o arquivo local — atualizar fotoUri no AsyncStorage com a URL do servidor
+        setMarkers((prev) => {
+          const updated = prev.map((m) =>
+            m.id === savedMarker!.id ? { ...m, fotoUri: resolverFotoUri(result.fotoUrl) ?? m.fotoUri } : m
+          );
+          AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated)).catch(() => {});
+          return updated;
+        });
       }
-      setSyncStatus(ok ? "ok" : "error");
+      setSyncStatus(result.ok ? "ok" : "error");
     }).catch(() => {
       marcarArvorePendente(savedMarker!.id);
       setPendingCount((c) => c + 1);
@@ -606,12 +615,21 @@ export default function MapaScreen() {
         });
       };
 
-      aplicarCarimboESync().then((ok) => {
-        if (!ok) {
+      aplicarCarimboESync().then((result) => {
+        if (!result.ok) {
           marcarArvorePendente(markerParaSync.id);
           setPendingCount((c) => c + 1);
+        } else if (result.fotoUrl) {
+          // G1 apagou o arquivo local — atualizar fotoUri no AsyncStorage com a URL do servidor
+          setMarkers((prev) => {
+            const updated = prev.map((m) =>
+              m.id === markerParaSync.id ? { ...m, fotoUri: resolverFotoUri(result.fotoUrl) ?? m.fotoUri } : m
+            );
+            AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated)).catch(() => {});
+            return updated;
+          });
         }
-        setSyncStatus(ok ? "ok" : "error");
+        setSyncStatus(result.ok ? "ok" : "error");
       }).catch(() => {
         marcarArvorePendente(markerParaSync.id);
         setPendingCount((c) => c + 1);

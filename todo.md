@@ -99,3 +99,5 @@
 - [x] Criar tests/carimbar-foto.test.ts com 18 testes unitários (136 total, 0 erros TypeScript)
 - [x] Carimbo em dois momentos: IRQ opcional em DadosCarimbo, fotoOriginalUri preservada desde handleTakePhoto/handlePickGallery, carimbo básico (nome+GPS+data) no handleSaveMarker, carimbo completo (nome+IRQ+GPS+data) no handleSaveIRQ usando fotoOriginalUri como base (sem sobreposição). 136 testes, 0 erros TypeScript.
 - [x] Fix path painel.html: fallback fs.existsSync em index.ts (dev: ../painel.html, prod: painel.html) + cp server/painel.html dist/painel.html no script build. pnpm build gera dist/index.js + dist/painel.html. 136 testes, 0 erros TypeScript.
+- [x] Bug 1: carimbarFoto normaliza retorno do react-native-image-marker para file:// (3 linhas em lib/carimbar-foto.ts)
+- [x] Bug 2: sincronizarArvore retorna { ok, fotoUrl }; mapa.native.tsx e use-network-sync.ts atualizam AsyncStorage com URL do servidor após G1 apagar arquivo local; resolverFotoUri monta URL absoluta para /uploads/... 136 testes, 0 erros TypeScript.

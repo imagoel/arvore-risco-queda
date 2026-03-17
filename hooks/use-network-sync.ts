@@ -10,7 +10,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import * as Network from "expo-network";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { sincronizarArvore, sincronizarRegiao, type ArvoreLocal, type RegiaoLocal } from "@/lib/sync";
+import { sincronizarArvore, sincronizarRegiao, resolverFotoUri, type ArvoreLocal, type RegiaoLocal } from "@/lib/sync";
 import type { IrqParametros } from "@/drizzle/schema";
 import { notificarSyncConcluido, notificarSyncParcial } from "@/lib/notifications";
 
@@ -215,6 +215,9 @@ export function useNetworkSync({ onStatusChange, onPendingCountChange }: UseNetw
       let syncedRegions = 0;
 
       // Sincronizar árvores pendentes
+      // Acumula atualizações de fotoUri para persistir no AsyncStorage em lote
+      const fotoUriUpdates: Record<string, string> = {};
+
       for (const treeId of pendingTreeIds) {
         const tree = allTrees.find((t) => t.id === treeId);
         if (!tree) {
@@ -222,12 +225,37 @@ export function useNetworkSync({ onStatusChange, onPendingCountChange }: UseNetw
           await removerArvorePendente(treeId);
           continue;
         }
-        const ok = await sincronizarArvore(tree);
-        if (ok) {
+        const result = await sincronizarArvore(tree);
+        if (result.ok) {
           await removerArvorePendente(treeId);
           syncedTrees++;
+          // G1 apagou o arquivo local — persistir a URL do servidor no AsyncStorage
+          // para que a foto continue visível no app após o sync.
+          if (result.fotoUrl) {
+            fotoUriUpdates[treeId] = result.fotoUrl;
+          }
         } else {
           allOk = false;
+        }
+      }
+
+      // Atualizar fotoUri no AsyncStorage para as árvores que tiveram upload bem-sucedido
+      if (Object.keys(fotoUriUpdates).length > 0) {
+        try {
+          const rawAll = await AsyncStorage.getItem(STORAGE_KEY);
+          if (rawAll) {
+            const markers = JSON.parse(rawAll) as Array<{ id: string; fotoUri?: string | null; [key: string]: unknown }>;
+            const updated = markers.map((m) => {
+              if (fotoUriUpdates[m.id]) {
+                // Usa resolverFotoUri para garantir URL absoluta na exibição
+                return { ...m, fotoUri: resolverFotoUri(fotoUriUpdates[m.id]) };
+              }
+              return m;
+            });
+            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+          }
+        } catch (storageErr) {
+          console.warn("[NetworkSync] Falha ao atualizar fotoUri no AsyncStorage:", storageErr);
         }
       }
 

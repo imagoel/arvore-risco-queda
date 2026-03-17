@@ -112,7 +112,13 @@ export async function carimbarFoto(
     saveFormat: ImageFormat.jpg,
   });
 
-  return resultado;
+  // react-native-image-marker pode retornar o path sem o prefixo file://
+  // (ex: /data/user/0/.../image.jpg). O <Image> do React Native requer file:///...
+  const uriNormalizada = resultado.startsWith("file://")
+    ? resultado
+    : `file://${resultado}`;
+
+  return uriNormalizada;
 }
 
 /**

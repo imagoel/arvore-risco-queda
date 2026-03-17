@@ -97,16 +97,49 @@ async function uploadFoto(uri: string, pasta: "arvores" | "regioes"): Promise<st
 }
 
 /**
+ * Resolve a URI de exibição de uma foto.
+ *
+ * - URIs locais (file://, content://) → retorna como está
+ * - Caminhos relativos do servidor (/uploads/...) → monta URL absoluta com a base da API
+ * - URLs absolutas (http://, https://) → retorna como está
+ */
+export function resolverFotoUri(fotoUri: string | undefined | null): string | undefined {
+  if (!fotoUri) return undefined;
+  if (fotoUri.startsWith("file://") || fotoUri.startsWith("content://")) return fotoUri;
+  if (fotoUri.startsWith("http://") || fotoUri.startsWith("https://")) return fotoUri;
+  // Caminho relativo do servidor (ex: /uploads/arvores/abc.jpg)
+  if (fotoUri.startsWith("/")) return `${getApiBaseUrl()}${fotoUri}`;
+  return fotoUri;
+}
+
+export interface SincronizarArvoreResult {
+  /** true se a sincronização foi bem-sucedida */
+  ok: boolean;
+  /**
+   * URL da foto no servidor após upload bem-sucedido.
+   * Presente apenas quando havia foto local e o upload foi concluído.
+   * Deve ser persistida no AsyncStorage para substituir o file:// local (que foi apagado pelo G1).
+   */
+  fotoUrl?: string;
+}
+
+/**
  * Sincroniza uma árvore com o servidor.
  * Se a árvore tiver foto local (file:// ou content://), faz upload primeiro.
+ * Retorna { ok, fotoUrl } para que o chamador possa atualizar o AsyncStorage
+ * com a URL remota (o arquivo local é apagado pelo G1 após upload bem-sucedido).
  */
-export async function sincronizarArvore(arvore: ArvoreLocal): Promise<boolean> {
+export async function sincronizarArvore(arvore: ArvoreLocal): Promise<SincronizarArvoreResult> {
   try {
     let fotoUrl = arvore.fotoUri;
+    let fotoUrlRemota: string | undefined;
 
     if (fotoUrl && (fotoUrl.startsWith("file://") || fotoUrl.startsWith("content://"))) {
       const urlRemota = await uploadFoto(fotoUrl, "arvores");
-      if (urlRemota) fotoUrl = urlRemota;
+      if (urlRemota) {
+        fotoUrl = urlRemota;
+        fotoUrlRemota = urlRemota;
+      }
     }
 
     const client = await getVanillaClient();
@@ -123,10 +156,10 @@ export async function sincronizarArvore(arvore: ArvoreLocal): Promise<boolean> {
       pinColor: arvore.pinColor,
     });
 
-    return true;
+    return { ok: true, fotoUrl: fotoUrlRemota };
   } catch (error) {
     console.warn("[Sync] Falha ao sincronizar árvore:", error);
-    return false;
+    return { ok: false };
   }
 }
 
