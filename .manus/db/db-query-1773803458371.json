@@ -1,0 +1,70 @@
+{
+  "query": "SELECT id, local_id, nome_cientifico, created_at FROM arvores ORDER BY created_at DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4RtGgCShHbxk5qV.root --database THps8jiAfWDRzfKXG2S5Rn --execute SELECT id, local_id, nome_cientifico, created_at FROM arvores ORDER BY created_at DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "150001",
+      "local_id": "1773803204222",
+      "nome_cientifico": "árvore 130",
+      "created_at": "2026-03-18 03:06:51"
+    },
+    {
+      "id": "120004",
+      "local_id": "1773802335239",
+      "nome_cientifico": "árvore 100",
+      "created_at": "2026-03-18 02:52:19"
+    },
+    {
+      "id": "120003",
+      "local_id": "1773802158456",
+      "nome_cientifico": "Árvore 31",
+      "created_at": "2026-03-18 02:49:23"
+    },
+    {
+      "id": "120002",
+      "local_id": "1773796699141",
+      "nome_cientifico": "árvore teste 2",
+      "created_at": "2026-03-18 01:18:24"
+    },
+    {
+      "id": "120001",
+      "local_id": "1773796008891",
+      "nome_cientifico": "Árvore teste 1",
+      "created_at": "2026-03-18 01:06:58"
+    },
+    {
+      "id": "90003",
+      "local_id": "1773710009882",
+      "nome_cientifico": "árvore 4567",
+      "created_at": "2026-03-17 01:14:06"
+    },
+    {
+      "id": "90002",
+      "local_id": "1773707506187",
+      "nome_cientifico": "1504 árvore",
+      "created_at": "2026-03-17 00:31:54"
+    },
+    {
+      "id": "90001",
+      "local_id": "1773705270725",
+      "nome_cientifico": "Twdre 50",
+      "created_at": "2026-03-16 23:54:37"
+    },
+    {
+      "id": "60001",
+      "local_id": "1773689912580",
+      "nome_cientifico": "árvore 16",
+      "created_at": "2026-03-16 19:38:39"
+    },
+    {
+      "id": "30003",
+      "local_id": "1773671905413",
+      "nome_cientifico": "teste 3",
+      "created_at": "2026-03-16 14:38:35"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tlocal_id\tnome_cientifico\tcreated_at\n150001\t1773803204222\tárvore 130\t2026-03-18 03:06:51\n120004\t1773802335239\tárvore 100\t2026-03-18 02:52:19\n120003\t1773802158456\tÁrvore 31\t2026-03-18 02:49:23\n120002\t1773796699141\tárvore teste 2\t2026-03-18 01:18:24\n120001\t1773796008891\tÁrvore teste 1\t2026-03-18 01:06:58\n90003\t1773710009882\tárvore 4567\t2026-03-17 01:14:06\n90002\t1773707506187\t1504 árvore\t2026-03-17 00:31:54\n90001\t1773705270725\tTwdre 50\t2026-03-16 23:54:37\n60001\t1773689912580\tárvore 16\t2026-03-16 19:38:39\n30003\t1773671905413\tteste 3\t2026-03-16 14:38:35\n",
+  "stderr": "",
+  "execution_time_ms": 1325
+}

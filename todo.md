@@ -102,3 +102,6 @@
 - [x] Bug 1: carimbarFoto normaliza retorno do react-native-image-marker para file:// (3 linhas em lib/carimbar-foto.ts)
 - [x] Bug 2: sincronizarArvore retorna { ok, fotoUrl }; mapa.native.tsx e use-network-sync.ts atualizam AsyncStorage com URL do servidor após G1 apagar arquivo local; resolverFotoUri monta URL absoluta para /uploads/... 136 testes, 0 erros TypeScript.
 - [x] Bug crítico: foto não carregava porque EXPO_PUBLIC_API_BASE_URL não estava configurado — app Android fazia fetch("/api/upload") contra si mesmo. Configurado com https://3000-idckihbhx37s5cpv0fkjm-6ccae501.us2.manus.computer. Upload testado via curl: 200 OK. 136 testes, 0 erros TypeScript.
+- [x] Fix __dirname ESM: fileURLToPath(import.meta.url) em server/_core/index.ts para compatibilidade com esbuild --format=esm no Docker
+- [x] Desativar allowBackup no Android (app.config.ts) para evitar restauração de dados antigos na reinstalação do APK
+- [x] Incrementar versão do app para 1.0.2 para forçar reinstalação limpa
