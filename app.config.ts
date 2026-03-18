@@ -27,7 +27,8 @@ const timestamp = bundleId.split(".").pop()?.replace(/^t/, "") ?? "";
 const schemeFromBundleId = `manus${timestamp}`;
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? ""; // Painel web
-const GOOGLE_MAPS_MOBILE_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_MOBILE_KEY ?? ""; // App iOS/Android
+const GOOGLE_MAPS_MOBILE_KEY =
+  process.env.EXPO_PUBLIC_GOOGLE_MAPS_MOBILE_KEY ?? ""; // App iOS/Android
 
 const env = {
   // App branding - update these values directly (do not use env vars)
@@ -35,7 +36,8 @@ const env = {
   appSlug: "arvore-risco-queda",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
-  logoUrl: "https://d2xsxph8kpxj0f.cloudfront.net/310519663427072609/THps8jiAfWDRzfKXG2S5Rn/icon-VELtTNythZ5Qhw32UqGxAS.png",
+  logoUrl:
+    "https://d2xsxph8kpxj0f.cloudfront.net/310519663427072609/THps8jiAfWDRzfKXG2S5Rn/icon-VELtTNythZ5Qhw32UqGxAS.png",
   scheme: schemeFromBundleId,
   iosBundleId: bundleId,
   androidPackage: bundleId,
@@ -49,7 +51,7 @@ const config: ExpoConfig = {
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
   userInterfaceStyle: "light",
-  newArchEnabled: false,
+  newArchEnabled: true,
   ios: {
     supportsTablet: true,
     bundleIdentifier: env.iosBundleId,
@@ -75,7 +77,11 @@ const config: ExpoConfig = {
     predictiveBackGestureEnabled: false,
     allowBackup: false,
     package: env.androidPackage,
-    permissions: ["POST_NOTIFICATIONS", "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"],
+    permissions: [
+      "POST_NOTIFICATIONS",
+      "ACCESS_FINE_LOCATION",
+      "ACCESS_COARSE_LOCATION",
+    ],
     intentFilters: [
       {
         action: "VIEW",
@@ -100,7 +106,8 @@ const config: ExpoConfig = {
     [
       "expo-audio",
       {
-        microphonePermission: "Allow $(PRODUCT_NAME) to access your microphone.",
+        microphonePermission:
+          "Allow $(PRODUCT_NAME) to access your microphone.",
       },
     ],
     [
@@ -125,15 +132,19 @@ const config: ExpoConfig = {
     [
       "expo-image-picker",
       {
-        photosPermission: "Permitir que o app acesse suas fotos para documentar árvores.",
-        cameraPermission: "Permitir que o app use a câmera para fotografar árvores.",
+        photosPermission:
+          "Permitir que o app acesse suas fotos para documentar árvores.",
+        cameraPermission:
+          "Permitir que o app use a câmera para fotografar árvores.",
       },
     ],
     [
       "expo-location",
       {
-        locationAlwaysAndWhenInUsePermission: "Permitir que o app acesse sua localização para identificar árvores no mapa.",
-        locationWhenInUsePermission: "Permitir que o app acesse sua localização para identificar árvores no mapa.",
+        locationAlwaysAndWhenInUsePermission:
+          "Permitir que o app acesse sua localização para identificar árvores no mapa.",
+        locationWhenInUsePermission:
+          "Permitir que o app acesse sua localização para identificar árvores no mapa.",
       },
     ],
     [
@@ -142,6 +153,7 @@ const config: ExpoConfig = {
         android: {
           buildArchs: ["armeabi-v7a", "arm64-v8a"],
           minSdkVersion: 24,
+          usesCleartextTraffic: true,
         },
       },
     ],
@@ -149,6 +161,11 @@ const config: ExpoConfig = {
   experiments: {
     typedRoutes: true,
     reactCompiler: true,
+  },
+  extra: {
+    eas: {
+      projectId: "3f187e72-52f8-45d9-9745-8f9f1b892473",
+    },
   },
 };
 
