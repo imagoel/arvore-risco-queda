@@ -49,6 +49,11 @@ app-example
 *.swo
 *~
 
+# Ignorar arquivos e pastas locais do nosso ambiente
+.env
+uploads/
+.claude/
+
 # Logs
 logs
 *.log
