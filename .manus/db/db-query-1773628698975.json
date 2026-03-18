@@ -1,9 +1,0 @@
-{
-  "query": "ALTER TABLE `arvores`\n  RENAME COLUMN `localId`          TO `local_id`,\n  RENAME COLUMN `nomeCientifico`   TO `nome_cientifico`,\n  RENAME COLUMN `fotoUrl`          TO `foto_url`,\n  RENAME COLUMN `irqValor`         TO `irq_valor`,\n  RENAME COLUMN `irqClassificacao` TO `irq_classificacao`,\n  RENAME COLUMN `irqParametros`    TO `irq_parametros`,\n  RENAME COLUMN `pinColor`         TO `pin_color`,\n  RENAME COLUMN `createdAt`        TO `created_at`,\n  RENAME COLUMN `updatedAt`        TO `updated_at`;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4RtGgCShHbxk5qV.root --database THps8jiAfWDRzfKXG2S5Rn --execute ALTER TABLE `arvores`\n  RENAME COLUMN `localId`          TO `local_id`,\n  RENAME COLUMN `nomeCientifico`   TO `nome_cientifico`,\n  RENAME COLUMN `fotoUrl`          TO `foto_url`,\n  RENAME COLUMN `irqValor`         TO `irq_valor`,\n  RENAME COLUMN `irqClassificacao` TO `irq_classificacao`,\n  RENAME COLUMN `irqParametros`    TO `irq_parametros`,\n  RENAME COLUMN `pinColor`         TO `pin_color`,\n  RENAME COLUMN `createdAt`        TO `created_at`,\n  RENAME COLUMN `updatedAt`        TO `updated_at`;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 321
-}

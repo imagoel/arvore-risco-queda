@@ -55,7 +55,7 @@ export const arvores = mysqlTable("arvores", {
   longitude: decimal({ precision: 10, scale: 7 }).notNull(),
   /** Dados do cálculo IRQ */
   irqValor: decimal({ precision: 10, scale: 2 }),
-  irqClassificacao: varchar({ length: 20 }),
+  irqClassificacao: varchar({ length: 50 }),
   /** Parâmetros do cálculo IRQ em JSON nativo do MySQL */
   irqParametros: json().$type<IrqParametros>(),
   /** Cor do pino no mapa (hex) */
