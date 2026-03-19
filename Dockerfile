@@ -27,9 +27,15 @@ RUN pnpm install --frozen-lockfile --prod
 # Copiar apenas o necessário do builder
 COPY --from=builder /app/dist ./dist
 
+# Copiar schema e config do Drizzle para migração automática
+COPY --from=builder /app/drizzle ./drizzle
+COPY --from=builder /app/drizzle.config.ts ./
+
 # Criar diretórios de upload para o volume mapear corretamente
 RUN mkdir -p uploads/arvores uploads/regioes
 
 EXPOSE 3000
 
-CMD ["node", "--experimental-detect-module", "dist/index.js"]
+# Migração automática: drizzle-kit push compara o schema com o banco
+# e cria/altera tabelas antes de iniciar o servidor
+CMD ["sh", "-c", "npx drizzle-kit push --force && node --experimental-detect-module dist/index.js"]
