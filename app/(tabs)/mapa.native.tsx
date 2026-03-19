@@ -55,6 +55,7 @@ export interface RegionPolygon {
   titulo: string;
   descricao: string;
   fotoUri: string | null;
+  fotoOriginalUri: string | null;
   criadoEm: string;
 }
 
@@ -75,6 +76,7 @@ interface RegionModalState {
   titulo: string;
   descricao: string;
   fotoUri: string | null;
+  fotoOriginalUri: string | null;
   editingId: string | null;
 }
 
@@ -177,7 +179,7 @@ export default function MapaScreen() {
   const [regions, setRegions] = useState<RegionPolygon[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<RegionPolygon | null>(null);
   const [regionModal, setRegionModal] = useState<RegionModalState>({
-    visible: false, titulo: "", descricao: "", fotoUri: null, editingId: null,
+    visible: false, titulo: "", descricao: "", fotoUri: null, fotoOriginalUri: null, editingId: null,
   });
 
   // Drawing state
@@ -194,6 +196,14 @@ export default function MapaScreen() {
 
   // KMZ export
   const [exportingKmz, setExportingKmz] = useState(false);
+
+  // Auto-hide do badge de sincronização após sucesso
+  useEffect(() => {
+    if (syncStatus === "ok") {
+      const timer = setTimeout(() => setSyncStatus("idle"), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [syncStatus]);
 
   // Monitoramento de rede e sync automático de pendentes
   const { syncPending } = useNetworkSync({
@@ -262,7 +272,7 @@ export default function MapaScreen() {
     if (!result.canceled) {
       const uri = result.assets[0].uri;
        if (photoTarget === "tree") setMarkerModal((m) => ({ ...m, fotoUri: uri, fotoOriginalUri: uri }));
-      else setRegionModal((m) => ({ ...m, fotoUri: uri }));
+      else setRegionModal((m) => ({ ...m, fotoUri: uri, fotoOriginalUri: uri }));
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   }, [photoTarget]);
@@ -279,7 +289,7 @@ export default function MapaScreen() {
     if (!result.canceled) {
       const uri = result.assets[0].uri;
        if (photoTarget === "tree") setMarkerModal((m) => ({ ...m, fotoUri: uri, fotoOriginalUri: uri }));
-      else setRegionModal((m) => ({ ...m, fotoUri: uri }));
+      else setRegionModal((m) => ({ ...m, fotoUri: uri, fotoOriginalUri: uri }));
       if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   }, [photoTarget]);
@@ -451,7 +461,7 @@ export default function MapaScreen() {
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setMapMode("none");
     // Open region modal to fill title/description/photo
-    setRegionModal({ visible: true, titulo: "", descricao: "", fotoUri: null, editingId: null });
+    setRegionModal({ visible: true, titulo: "", descricao: "", fotoUri: null, fotoOriginalUri: null, editingId: null });
   }, [drawingCoords]);
 
   const handleSaveRegion = useCallback(() => {
@@ -460,46 +470,75 @@ export default function MapaScreen() {
       return;
     }
     if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    let savedRegion: RegionPolygon;
     if (regionModal.editingId) {
       setRegions((prev) =>
-        prev.map((r) =>
-          r.id === regionModal.editingId
-            ? { ...r, titulo: regionModal.titulo.trim(), descricao: regionModal.descricao.trim(), fotoUri: regionModal.fotoUri }
-            : r
-        )
+        prev.map((r) => {
+          if (r.id === regionModal.editingId) {
+            savedRegion = { ...r, titulo: regionModal.titulo.trim(), descricao: regionModal.descricao.trim(), fotoUri: regionModal.fotoUri, fotoOriginalUri: regionModal.fotoOriginalUri ?? r.fotoOriginalUri };
+            return savedRegion;
+          }
+          return r;
+        })
       );
     } else {
-      const newRegion: RegionPolygon = {
+      savedRegion = {
         id: Date.now().toString(),
         coordinates: drawingCoords,
         titulo: regionModal.titulo.trim(),
         descricao: regionModal.descricao.trim(),
         fotoUri: regionModal.fotoUri,
+        fotoOriginalUri: regionModal.fotoOriginalUri,
         criadoEm: new Date().toLocaleString("pt-BR"),
       };
-      setRegions((prev) => [...prev, newRegion]);
+      setRegions((prev) => [...prev, savedRegion]);
       setDrawingCoords([]);
-      // Sincronizar nova região com backend
-      setSyncStatus("syncing");
-      sincronizarRegiao({
-        id: newRegion.id,
-        titulo: newRegion.titulo,
-        descricao: newRegion.descricao,
-        fotoUri: newRegion.fotoUri ?? undefined,
-        coordenadas: newRegion.coordinates,
-      }).then((ok) => {
-        if (!ok) {
-          marcarRegiaoPendente(newRegion.id);
-          setPendingCount((c) => c + 1);
-        }
-        setSyncStatus(ok ? "ok" : "error");
-      }).catch(() => {
-        marcarRegiaoPendente(newRegion.id);
-        setPendingCount((c) => c + 1);
-        setSyncStatus("error");
-      });
     }
     setRegionModal((m) => ({ ...m, visible: false }));
+    setSyncStatus("syncing");
+
+    // Carimbo + sync para regiões (criação e edição)
+    const carimbarESync = async () => {
+      const region = savedRegion!;
+      let fotoFinal = region.fotoUri ?? undefined;
+      const baseParaCarimbo = region.fotoOriginalUri ?? region.fotoUri;
+      if (Platform.OS !== "web" && baseParaCarimbo) {
+        try {
+          const centro = centroid(region.coordinates);
+          const fotoCarimbada = await carimbarFoto(baseParaCarimbo, {
+            nomeCientifico: region.titulo,
+            latitude: centro.latitude,
+            longitude: centro.longitude,
+          });
+          fotoFinal = fotoCarimbada;
+          setRegions((prev) =>
+            prev.map((r) => r.id === region.id ? { ...r, fotoUri: fotoCarimbada } : r)
+          );
+        } catch (err) {
+          console.warn("[Carimbo] Falha no carimbo da região, usando foto original:", err);
+        }
+      }
+      return sincronizarRegiao({
+        id: region.id,
+        titulo: region.titulo,
+        descricao: region.descricao,
+        fotoUri: fotoFinal,
+        coordenadas: region.coordinates,
+      });
+    };
+
+    carimbarESync().then((ok) => {
+      if (!ok) {
+        marcarRegiaoPendente(savedRegion!.id);
+        setPendingCount((c) => c + 1);
+      }
+      setSyncStatus(ok ? "ok" : "error");
+    }).catch(() => {
+      marcarRegiaoPendente(savedRegion!.id);
+      setPendingCount((c) => c + 1);
+      setSyncStatus("error");
+    });
   }, [regionModal, drawingCoords]);
 
   const handleRegionPress = useCallback((region: RegionPolygon) => {
@@ -511,7 +550,7 @@ export default function MapaScreen() {
 
   const handleEditRegion = useCallback((region: RegionPolygon) => {
     setSelectedRegion(null);
-    setRegionModal({ visible: true, titulo: region.titulo, descricao: region.descricao, fotoUri: region.fotoUri ?? null, editingId: region.id });
+    setRegionModal({ visible: true, titulo: region.titulo, descricao: region.descricao, fotoUri: region.fotoUri ?? null, fotoOriginalUri: region.fotoOriginalUri ?? null, editingId: region.id });
   }, []);
 
   const handleDeleteRegion = useCallback((id: string) => {
@@ -887,20 +926,20 @@ export default function MapaScreen() {
         {/* Legend */}
         <View style={styles.legend}>
           <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: "#16A34A" }]} />
+            <View style={[styles.legendDot, { backgroundColor: "#4FC3F7" }]} />
+            <Text style={styles.legendText}>Muito Baixo</Text>
+          </View>
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: "#66BB6A" }]} />
             <Text style={styles.legendText}>Baixo</Text>
           </View>
           <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: "#CA8A04" }]} />
-            <Text style={styles.legendText}>Moderado</Text>
+            <View style={[styles.legendDot, { backgroundColor: "#FFA726" }]} />
+            <Text style={styles.legendText}>Monitorar</Text>
           </View>
           <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: "#EA580C" }]} />
-            <Text style={styles.legendText}>Alto</Text>
-          </View>
-          <View style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: "#DC2626" }]} />
-            <Text style={styles.legendText}>Muito Alto</Text>
+            <View style={[styles.legendDot, { backgroundColor: "#EF5350" }]} />
+            <Text style={styles.legendText}>Supressão</Text>
           </View>
         </View>
 

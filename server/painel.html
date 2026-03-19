@@ -130,6 +130,19 @@
     }
     .card-coords { font-size: 11px; color: #AAAAAA; font-family: monospace; margin-top: 4px; }
     .card-photo { width: 100%; height: 100px; object-fit: cover; border-radius: 8px; margin-top: 8px; }
+    .card-footer { display: flex; justify-content: flex-end; margin-top: 8px; }
+    .btn-delete {
+      background: none;
+      border: 1px solid #EF5350;
+      color: #EF5350;
+      border-radius: 8px;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-delete:hover { background: #EF5350; color: #fff; }
 
     /* ── Region card ── */
     .region-card-title { font-size: 14px; font-weight: 700; color: #1A2E22; }
@@ -358,6 +371,9 @@ function renderSidebar() {
           ${tree.descricao ? `<div style="font-size:13px;color:#555;margin-top:8px;line-height:1.5;">${tree.descricao}</div>` : ''}
           ${photo}
           <div class="card-coords">${parseFloat(tree.latitude).toFixed(6)}, ${parseFloat(tree.longitude).toFixed(6)}</div>
+          <div class="card-footer">
+            <button class="btn-delete" onclick="event.stopPropagation(); deleteTree('${tree.localId}', '${(tree.nomeCientifico || 'Árvore').replace(/'/g, "\\'")}')">Excluir</button>
+          </div>
         </div>`;
     }).join('');
   } else {
@@ -389,6 +405,9 @@ function renderSidebar() {
           </div>
           ${region.descricao ? `<div style="font-size:13px;color:#555;margin-top:8px;line-height:1.5;">${region.descricao}</div>` : ''}
           ${photo}
+          <div class="card-footer">
+            <button class="btn-delete" onclick="event.stopPropagation(); deleteRegion('${region.localId}', '${(region.titulo || 'Região').replace(/'/g, "\\'")}')">Excluir</button>
+          </div>
         </div>`;
     }).join('');
   }
@@ -609,6 +628,47 @@ function scrollToCard(localId) {
       }
     }
   }, 50);
+}
+
+// ── Delete ───────────────────────────────────────────────────────────────────
+async function deleteTree(localId, nome) {
+  if (!confirm(`Excluir a árvore "${nome}"?\n\nEssa ação não pode ser desfeita.`)) return;
+  try {
+    const res = await fetch('/api/trpc/arvores.deletar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ json: { localId } }),
+    });
+    if (!res.ok) throw new Error('Erro ' + res.status);
+    allTrees = allTrees.filter(t => t.localId !== localId);
+    if (selectedId === localId) { selectedId = null; if (infoWindow) infoWindow.close(); }
+    updateStats();
+    renderSidebar();
+    renderMap();
+  } catch (err) {
+    console.error('[Painel] Erro ao excluir árvore:', err);
+    alert('Erro ao excluir árvore. Verifique a conexão.');
+  }
+}
+
+async function deleteRegion(localId, titulo) {
+  if (!confirm(`Excluir a região "${titulo}"?\n\nEssa ação não pode ser desfeita.`)) return;
+  try {
+    const res = await fetch('/api/trpc/regioes.deletar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ json: { localId } }),
+    });
+    if (!res.ok) throw new Error('Erro ' + res.status);
+    allRegions = allRegions.filter(r => r.localId !== localId);
+    if (selectedId === localId) { selectedId = null; if (infoWindow) infoWindow.close(); }
+    updateStats();
+    renderSidebar();
+    renderMap();
+  } catch (err) {
+    console.error('[Painel] Erro ao excluir região:', err);
+    alert('Erro ao excluir região. Verifique a conexão.');
+  }
 }
 
 // ── Google Maps init ──────────────────────────────────────────────────────────
