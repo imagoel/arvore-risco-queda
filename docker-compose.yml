@@ -20,10 +20,10 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3005:3005"
     environment:
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=3005
       - DATABASE_URL=mysql://root:${MYSQL_ROOT_PASSWORD}@db:3306/${MYSQL_DATABASE}
       - JWT_SECRET=${JWT_SECRET}
       - PUBLIC_URL=${PUBLIC_URL}
@@ -31,7 +31,7 @@ services:
     volumes:
       - ./uploads:/app/uploads
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3005/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
