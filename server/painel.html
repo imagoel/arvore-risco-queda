@@ -144,6 +144,39 @@
     }
     .btn-delete:hover { background: #EF5350; color: #fff; }
 
+    /* ── Checkbox de seleção ── */
+    .card-checkbox {
+      width: 18px; height: 18px;
+      accent-color: #5B2EBE;
+      cursor: pointer;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .btn-relatorio {
+      background: #2D6A4F;
+      color: #fff;
+      border: none;
+      border-radius: 20px;
+      padding: 8px 18px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.15s;
+    }
+    .btn-relatorio:hover { opacity: 0.85; }
+    .btn-relatorio:disabled { opacity: 0.4; cursor: not-allowed; }
+    .selection-count {
+      font-size: 11px;
+      color: #fff;
+      background: #5B2EBE;
+      border-radius: 10px;
+      padding: 1px 7px;
+      margin-left: 4px;
+    }
+
     /* ── Region card ── */
     .region-card-title { font-size: 14px; font-weight: 700; color: #1A2E22; }
     .region-card-sub { font-size: 12px; color: #888; margin-top: 2px; }
@@ -195,6 +228,9 @@
   </div>
   <div class="header-actions">
     <span id="last-update" style="font-size:12px;opacity:0.5;"></span>
+    <button class="btn-relatorio" onclick="gerarRelatorio()" id="btn-relatorio">
+      📄 Gerar Relatório
+    </button>
     <a id="btn-kmz" class="btn-kmz" href="/api/kmz" download>
       ⬇ Baixar KMZ
     </a>
@@ -256,6 +292,8 @@ let markers = [];
 let polygons = [];
 let infoWindow = null;
 let selectedId = null;
+let selectedTreeIds = new Set();
+let selectedRegionIds = new Set();
 
 // ── Risk colors ───────────────────────────────────────────────────────────────
 const RISK_COLORS = {
@@ -361,6 +399,8 @@ function renderSidebar() {
         <div class="card ${selectedId === tree.localId ? 'selected' : ''}"
              onclick="selectTree('${tree.localId}')">
           <div class="card-header">
+            <input type="checkbox" class="card-checkbox" ${selectedTreeIds.has(tree.localId) ? 'checked' : ''}
+              onclick="event.stopPropagation(); toggleTreeSelection('${tree.localId}')" />
             <div class="card-icon" style="background:${rc.bg}">🌳</div>
             <div style="flex:1;min-width:0;">
               <div class="card-title">${tree.nomeCientifico || 'Árvore sem nome'}</div>
@@ -396,6 +436,8 @@ function renderSidebar() {
         <div class="card ${selectedId === region.localId ? 'selected' : ''}"
              onclick="selectRegion('${region.localId}')">
           <div class="card-header">
+            <input type="checkbox" class="card-checkbox" ${selectedRegionIds.has(region.localId) ? 'checked' : ''}
+              onclick="event.stopPropagation(); toggleRegionSelection('${region.localId}')" />
             <div class="card-icon" style="background:#EDE9FE">⬡</div>
             <div style="flex:1;min-width:0;">
               <div class="region-card-title">${region.titulo || 'Região sem título'}</div>
@@ -668,6 +710,68 @@ async function deleteRegion(localId, titulo) {
   } catch (err) {
     console.error('[Painel] Erro ao excluir região:', err);
     alert('Erro ao excluir região. Verifique a conexão.');
+  }
+}
+
+// ── Seleção para relatório ────────────────────────────────────────────────────
+function toggleTreeSelection(localId) {
+  if (selectedTreeIds.has(localId)) selectedTreeIds.delete(localId);
+  else selectedTreeIds.add(localId);
+  updateRelatorioButton();
+}
+
+function toggleRegionSelection(localId) {
+  if (selectedRegionIds.has(localId)) selectedRegionIds.delete(localId);
+  else selectedRegionIds.add(localId);
+  updateRelatorioButton();
+}
+
+function updateRelatorioButton() {
+  const total = selectedTreeIds.size + selectedRegionIds.size;
+  const btn = document.getElementById('btn-relatorio');
+  if (total > 0) {
+    btn.innerHTML = `📄 Gerar Relatório <span class="selection-count">${total}</span>`;
+  } else {
+    btn.innerHTML = '📄 Gerar Relatório';
+  }
+}
+
+async function gerarRelatorio() {
+  const btn = document.getElementById('btn-relatorio');
+  const textoOriginal = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Gerando...';
+
+  try {
+    const hasSelection = selectedTreeIds.size > 0 || selectedRegionIds.size > 0;
+    const body = {
+      arvoreIds: hasSelection ? Array.from(selectedTreeIds) : null,
+      regiaoIds: hasSelection ? Array.from(selectedRegionIds) : null,
+    };
+
+    const res = await fetch('/api/relatorio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) throw new Error('Erro ' + res.status);
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] || 'relatorio.docx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('[Painel] Erro ao gerar relatório:', err);
+    alert('Erro ao gerar relatório. Verifique a conexão.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = textoOriginal;
   }
 }
 

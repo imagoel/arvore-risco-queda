@@ -9,6 +9,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerUploadRoutes } from "../upload-local";
 import { gerarKmz } from "../kmz";
+import { gerarRelatorio } from "../relatorio";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 
@@ -138,6 +139,18 @@ async function startServer() {
       console.error("[kmz] erro ao gerar:", err);
       if (!res.headersSent) {
         res.status(500).json({ error: "Erro ao gerar KMZ" });
+      }
+    }
+  });
+
+  // Rota de geração de relatório Word (.docx)
+  app.post("/api/relatorio", async (req, res) => {
+    try {
+      await gerarRelatorio(req, res);
+    } catch (err) {
+      console.error("[relatorio] erro ao gerar:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Erro ao gerar relatório" });
       }
     }
   });

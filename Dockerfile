@@ -1,24 +1,31 @@
-FROM node:20-alpine
+# ── Stage 1: Build ────────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
 
-# Habilitar e instalar o pnpm via corepack
 RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
 
 WORKDIR /app
 
-# Copiar arquivos de dependência primeiro (para usar o cache do Docker)
+# Copiar arquivos de dependência primeiro (cache do Docker)
 COPY package.json pnpm-lock.yaml ./
-
-# Instalar dependências usando o pnpm
 RUN pnpm install --frozen-lockfile
 
-# Copiar o restante do projeto
+# Copiar código-fonte e buildar
 COPY . .
-
-# Build do servidor com esbuild
 RUN pnpm build
 
-# Copiar painel.html para dist/ (fix do __dirname no ESM build)
-RUN cp server/painel.html dist/painel.html
+# ── Stage 2: Runtime (imagem limpa, só produção) ─────────────────────────────
+FROM node:20-alpine
+
+RUN corepack enable && corepack prepare pnpm@9.12.0 --activate
+
+WORKDIR /app
+
+# Instalar apenas dependências de produção
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --prod
+
+# Copiar apenas o necessário do builder
+COPY --from=builder /app/dist ./dist
 
 # Criar diretórios de upload para o volume mapear corretamente
 RUN mkdir -p uploads/arvores uploads/regioes
