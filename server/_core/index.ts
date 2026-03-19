@@ -106,17 +106,17 @@ async function startServer() {
       const envUrl         = process.env.PUBLIC_URL;
 
       let apiBase: string;
-      if (forwardedProto && forwardedHost) {
-        // Cenário 1: atrás de proxy reverso (Nginx, Manus, Cloudflare, etc.)
+      if (envUrl) {
+        // Cenário 1: PUBLIC_URL definida (produção — mais confiável com tunnels/proxies)
+        apiBase = envUrl.replace(/\/$/, "");
+      } else if (forwardedProto && forwardedHost) {
+        // Cenário 2: atrás de proxy reverso (Nginx, Manus, etc.)
         const proto = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto;
         const host  = Array.isArray(forwardedHost)  ? forwardedHost[0]  : forwardedHost;
         apiBase = `${proto}://${host}`;
       } else if (directHost) {
-        // Cenário 2: acesso direto (curl, dev local com header Host presente)
+        // Cenário 3: acesso direto (curl, dev local com header Host presente)
         apiBase = `${req.protocol}://${directHost}`;
-      } else if (envUrl) {
-        // Cenário 3: variável de ambiente configurada manualmente
-        apiBase = envUrl.replace(/\/$/, ""); // remove trailing slash
       } else {
         // Cenário 4: último recurso — localhost com a porta atual
         apiBase = `http://127.0.0.1:${port}`;
