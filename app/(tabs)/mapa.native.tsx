@@ -327,7 +327,7 @@ export default function MapaScreen() {
       setMarkers((prev) =>
         prev.map((m) => {
           if (m.id === markerModal.editingId) {
-            savedMarker = { ...m, nomeCientifico: markerModal.nomeCientifico.trim(), descricao: markerModal.descricao.trim(), fotoUri: markerModal.fotoUri };
+            savedMarker = { ...m, nomeCientifico: markerModal.nomeCientifico.trim(), descricao: markerModal.descricao.trim(), fotoUri: markerModal.fotoUri, fotoOriginalUri: markerModal.fotoOriginalUri ?? m.fotoOriginalUri };
             return savedMarker;
           }
           return m;

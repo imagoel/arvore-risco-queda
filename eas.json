@@ -1,0 +1,14 @@
+{
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_MAPS_MOBILE_KEY": "AIzaSyBbL8eB3YWb_dRsggj-v2kA8psEOoRDjCg",
+        "EXPO_PUBLIC_API_BASE_URL": "http://192.168.1.109:3000"
+      }
+    }
+  }
+}

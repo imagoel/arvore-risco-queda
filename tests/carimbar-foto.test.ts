@@ -137,11 +137,11 @@ describe("carimbarFoto", () => {
     expect(textoDireito).toMatch(/\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
   });
 
-  it("usa saveFormat jpg e quality 90", async () => {
+  it("usa saveFormat jpg e quality 92", async () => {
     await carimbarFoto("file:///original.jpg", dadosPadrao);
     const opcoes = (Marker.markText as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(opcoes.saveFormat).toBe("jpg");
-    expect(opcoes.quality).toBe(90);
+    expect(opcoes.quality).toBe(92);
   });
 
   it("posiciona carimbo esquerdo em bottomLeft", async () => {

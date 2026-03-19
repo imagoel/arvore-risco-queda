@@ -63,9 +63,13 @@ export async function carimbarFoto(
   // Inferior direito: data/hora + coordenadas GPS
   const textoDireito = `${dataFormatada}\n${coordenadas}`;
 
+  // Fonte grande para ser legível em relatórios e visualizadores (KMZ/QGIS).
+  // Fotos de câmera têm ~3000-4000px de largura; fontSize 80 ≈ 2-2.7% da largura,
+  // similar ao Timestamp Camera Free.
+  const FONT_SIZE = 80;
+
   const resultado = await Marker.markText({
     backgroundImage: {
-      // Para URIs locais do dispositivo, passar como objeto { uri } (ImageSource)
       src: { uri: fotoUri },
       scale: 1,
     },
@@ -77,14 +81,20 @@ export async function carimbarFoto(
         },
         style: {
           color: "#FFFFFF",
-          fontSize: 14,
+          fontSize: FONT_SIZE,
           fontName: "Arial",
-          bold: false,
+          bold: true,
+          shadowStyle: {
+            dx: 2,
+            dy: 2,
+            radius: 4,
+            color: "#000000",
+          },
           textBackgroundStyle: {
-            paddingX: "3%",
-            paddingY: "5%",
+            paddingX: "2%",
+            paddingY: "2%",
             type: TextBackgroundType.stretchX,
-            color: "rgba(0,0,0,0.55)",
+            color: "rgba(0,0,0,0.6)",
           },
         },
       },
@@ -95,20 +105,26 @@ export async function carimbarFoto(
         },
         style: {
           color: "#FFFFFF",
-          fontSize: 14,
+          fontSize: FONT_SIZE,
           fontName: "Arial",
-          bold: false,
+          bold: true,
           textAlign: "right",
+          shadowStyle: {
+            dx: 2,
+            dy: 2,
+            radius: 4,
+            color: "#000000",
+          },
           textBackgroundStyle: {
-            paddingX: "3%",
-            paddingY: "5%",
+            paddingX: "2%",
+            paddingY: "2%",
             type: TextBackgroundType.stretchX,
-            color: "rgba(0,0,0,0.55)",
+            color: "rgba(0,0,0,0.6)",
           },
         },
       },
     ],
-    quality: 90,
+    quality: 92,
     saveFormat: ImageFormat.jpg,
   });
 
