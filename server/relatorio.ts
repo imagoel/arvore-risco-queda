@@ -47,12 +47,50 @@ function formatarData(d: Date): string {
   return `${dia}/${mes}/${ano}`;
 }
 
-/** Tenta carregar uma imagem local; retorna o buffer ou null */
-function carregarFoto(fotoUrl: string | null | undefined): Buffer | null {
+/** Lê dimensões de um JPEG a partir dos markers SOF no buffer */
+function lerDimensoesJpeg(buf: Buffer): { w: number; h: number } | null {
+  let i = 2; // pula SOI (0xFFD8)
+  while (i < buf.length - 1) {
+    if (buf[i] !== 0xff) break;
+    const marker = buf[i + 1];
+    // SOF0..SOF3 contêm as dimensões
+    if (marker >= 0xc0 && marker <= 0xc3) {
+      const h = buf.readUInt16BE(i + 5);
+      const w = buf.readUInt16BE(i + 7);
+      return { w, h };
+    }
+    const len = buf.readUInt16BE(i + 2);
+    i += 2 + len;
+  }
+  return null;
+}
+
+/** Largura máxima da foto no documento (em pixels do Word ~96dpi) */
+const FOTO_MAX_WIDTH = 400;
+/** Altura máxima — garante que foto + título + dados cabem em 1 página */
+const FOTO_MAX_HEIGHT = 500;
+
+/** Tenta carregar uma imagem local; retorna o buffer e dimensões proporcionais */
+function carregarFoto(fotoUrl: string | null | undefined): { data: Buffer; width: number; height: number } | null {
   if (!fotoUrl || !fotoUrl.startsWith("/uploads/")) return null;
   const localPath = path.join(UPLOADS_DIR, fotoUrl.replace("/uploads/", ""));
   try {
-    if (fs.existsSync(localPath)) return fs.readFileSync(localPath);
+    if (!fs.existsSync(localPath)) return null;
+    const data = fs.readFileSync(localPath);
+    const dims = lerDimensoesJpeg(data);
+    if (dims && dims.w > 0 && dims.h > 0) {
+      const ratio = dims.h / dims.w;
+      let width = Math.min(FOTO_MAX_WIDTH, dims.w);
+      let height = Math.round(width * ratio);
+      // Se a altura ultrapassar o máximo, reduz proporcionalmente
+      if (height > FOTO_MAX_HEIGHT) {
+        height = FOTO_MAX_HEIGHT;
+        width = Math.round(height / ratio);
+      }
+      return { data, width, height };
+    }
+    // Fallback se não conseguir ler dimensões
+    return { data, width: FOTO_MAX_WIDTH, height: 338 };
   } catch { /* ignora */ }
   return null;
 }
@@ -258,16 +296,16 @@ export async function gerarRelatorio(req: Request, res: Response): Promise<void>
       );
 
       // Foto (acima das informações)
-      const fotoBuffer = carregarFoto(a.fotoUrl);
-      if (fotoBuffer) {
+      const foto = carregarFoto(a.fotoUrl);
+      if (foto) {
         children.push(
           new Paragraph({
             alignment: AlignmentType.CENTER,
             spacing: { after: 200 },
             children: [
               new ImageRun({
-                data: fotoBuffer,
-                transformation: { width: 450, height: 338 },
+                data: foto.data,
+                transformation: { width: foto.width, height: foto.height },
                 type: "jpg",
               }),
             ],
@@ -365,16 +403,16 @@ export async function gerarRelatorio(req: Request, res: Response): Promise<void>
       );
 
       // Foto
-      const fotoBuffer = carregarFoto(r.fotoUrl);
-      if (fotoBuffer) {
+      const foto = carregarFoto(r.fotoUrl);
+      if (foto) {
         children.push(
           new Paragraph({
             alignment: AlignmentType.CENTER,
             spacing: { after: 200 },
             children: [
               new ImageRun({
-                data: fotoBuffer,
-                transformation: { width: 450, height: 338 },
+                data: foto.data,
+                transformation: { width: foto.width, height: foto.height },
                 type: "jpg",
               }),
             ],
