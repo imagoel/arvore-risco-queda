@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import crypto from "crypto";
 import { createServer } from "http";
 import net from "net";
 import fs from "fs";
@@ -72,11 +73,100 @@ async function startServer() {
     next();
   });
 
+  // ── Autenticação do painel (usuário/senha via env var) ──────────────────────
+  // Formato: PAINEL_USERS=user1:pass1,user2:pass2
+  // Fallback: PAINEL_USER + PAINEL_PASSWORD (single user)
+  const painelUsers = new Map<string, string>();
+  const rawUsers = process.env.PAINEL_USERS || "";
+  if (rawUsers) {
+    rawUsers.split(",").forEach((entry) => {
+      const idx = entry.indexOf(":");
+      if (idx > 0) {
+        painelUsers.set(entry.slice(0, idx).trim(), entry.slice(idx + 1).trim());
+      }
+    });
+  } else if (process.env.PAINEL_PASSWORD) {
+    painelUsers.set(process.env.PAINEL_USER || "admin", process.env.PAINEL_PASSWORD);
+  }
+  const sessionTokens = new Set<string>();
+
+  function parseCookies(header: string | undefined): Record<string, string> {
+    const cookies: Record<string, string> = {};
+    if (!header) return cookies;
+    header.split(";").forEach((c) => {
+      const [key, ...rest] = c.split("=");
+      if (key) cookies[key.trim()] = rest.join("=").trim();
+    });
+    return cookies;
+  }
+
+  function isPainelAuth(req: express.Request): boolean {
+    if (painelUsers.size === 0) return true; // sem usuários configurados = sem proteção
+    const cookies = parseCookies(req.headers.cookie);
+    const token = cookies["painel_session"];
+    return !!token && sessionTokens.has(token);
+  }
+
+  // Tela de login
+  app.get("/login", (_req, res) => {
+    let htmlPath = path.resolve(__dirname, "login.html");
+    if (!fs.existsSync(htmlPath)) {
+      htmlPath = path.resolve(__dirname, "../login.html");
+    }
+    if (fs.existsSync(htmlPath)) {
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(fs.readFileSync(htmlPath, "utf-8"));
+    } else {
+      res.status(500).send("Login page not found");
+    }
+  });
+
+  // Rota de login
+  app.post("/api/login", (req, res) => {
+    const { user, password } = req.body || {};
+    if (painelUsers.has(user) && painelUsers.get(user) === password) {
+      const token = crypto.randomBytes(32).toString("hex");
+      sessionTokens.add(token);
+      res.setHeader(
+        "Set-Cookie",
+        `painel_session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`,
+      );
+      res.json({ ok: true });
+    } else {
+      res.status(401).json({ error: "Usuário ou senha inválidos" });
+    }
+  });
+
+  // Rota de logout
+  app.get("/api/logout", (req, res) => {
+    const cookies = parseCookies(req.headers.cookie);
+    const token = cookies["painel_session"];
+    if (token) sessionTokens.delete(token);
+    res.setHeader(
+      "Set-Cookie",
+      "painel_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0",
+    );
+    res.redirect("/login");
+  });
+
+  // Middleware: protege rotas do painel (não afeta /api/trpc nem /api/login)
+  function requirePainelAuth(
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) {
+    if (isPainelAuth(req)) {
+      next();
+    } else {
+      res.redirect("/login");
+    }
+  }
+
   registerOAuthRoutes(app);
   registerUploadRoutes(app);
 
-  // Painel administrativo web
-  app.get("/painel", (req, res) => {
+  // Painel administrativo web (protegido)
+  app.get("/painel", requirePainelAuth, (req, res) => {
     try {
       // Em produção (esbuild ESM → dist/index.js), __dirname = dist/
       // O script build copia painel.html para dist/, então tentamos dist/painel.html primeiro.
@@ -131,8 +221,8 @@ async function startServer() {
     }
   });
 
-  // Rota de exportação KMZ
-  app.get("/api/kmz", async (req, res) => {
+  // Rota de exportação KMZ (protegida)
+  app.get("/api/kmz", requirePainelAuth, async (req, res) => {
     try {
       await gerarKmz(req, res);
     } catch (err) {
@@ -143,8 +233,8 @@ async function startServer() {
     }
   });
 
-  // Rota de geração de relatório Word (.docx)
-  app.post("/api/relatorio", async (req, res) => {
+  // Rota de geração de relatório Word (.docx) (protegida)
+  app.post("/api/relatorio", requirePainelAuth, async (req, res) => {
     try {
       await gerarRelatorio(req, res);
     } catch (err) {

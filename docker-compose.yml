@@ -29,6 +29,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - PUBLIC_URL=${PUBLIC_URL}
       - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+      - PAINEL_USERS=${PAINEL_USERS}
     volumes:
       - ./uploads:/app/uploads
     healthcheck:
