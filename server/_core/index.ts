@@ -107,6 +107,11 @@ async function startServer() {
     return !!token && sessionTokens.has(token);
   }
 
+  // Redireciona a raiz para o painel
+  app.get("/", (_req, res) => {
+    res.redirect("/painel");
+  });
+
   // Tela de login
   app.get("/login", (_req, res) => {
     let htmlPath = path.resolve(__dirname, "login.html");
