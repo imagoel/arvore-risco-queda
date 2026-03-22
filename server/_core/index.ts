@@ -49,7 +49,10 @@ async function startServer() {
     if (origin) {
       res.header("Access-Control-Allow-Origin", origin);
     }
-    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.header(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PUT, DELETE, OPTIONS",
+    );
     res.header(
       "Access-Control-Allow-Headers",
       "Origin, X-Requested-With, Content-Type, Accept, Authorization",
@@ -82,11 +85,17 @@ async function startServer() {
     rawUsers.split(",").forEach((entry) => {
       const idx = entry.indexOf(":");
       if (idx > 0) {
-        painelUsers.set(entry.slice(0, idx).trim(), entry.slice(idx + 1).trim());
+        painelUsers.set(
+          entry.slice(0, idx).trim(),
+          entry.slice(idx + 1).trim(),
+        );
       }
     });
   } else if (process.env.PAINEL_PASSWORD) {
-    painelUsers.set(process.env.PAINEL_USER || "admin", process.env.PAINEL_PASSWORD);
+    painelUsers.set(
+      process.env.PAINEL_USER || "admin",
+      process.env.PAINEL_PASSWORD,
+    );
   }
   const sessionTokens = new Set<string>();
 
@@ -107,9 +116,9 @@ async function startServer() {
     return !!token && sessionTokens.has(token);
   }
 
-  // Redireciona a raiz para o painel
+  // ── REDIRECIONAMENTO DA RAIZ ──────────────────────────────────────────
   app.get("/", (_req, res) => {
-    res.redirect("/painel");
+    res.redirect("/login");
   });
 
   // Tela de login
@@ -196,9 +205,9 @@ async function startServer() {
       // 3. PUBLIC_URL env var                  (configurado manualmente em produção)
       // 4. http://localhost:{port}              (dev local sem proxy, último recurso)
       const forwardedProto = req.headers["x-forwarded-proto"];
-      const forwardedHost  = req.headers["x-forwarded-host"];
-      const directHost     = req.headers.host;
-      const envUrl         = process.env.PUBLIC_URL;
+      const forwardedHost = req.headers["x-forwarded-host"];
+      const directHost = req.headers.host;
+      const envUrl = process.env.PUBLIC_URL;
 
       let apiBase: string;
       if (envUrl) {
@@ -206,8 +215,12 @@ async function startServer() {
         apiBase = envUrl.replace(/\/$/, "");
       } else if (forwardedProto && forwardedHost) {
         // Cenário 2: atrás de proxy reverso (Nginx, Manus, etc.)
-        const proto = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto;
-        const host  = Array.isArray(forwardedHost)  ? forwardedHost[0]  : forwardedHost;
+        const proto = Array.isArray(forwardedProto)
+          ? forwardedProto[0]
+          : forwardedProto;
+        const host = Array.isArray(forwardedHost)
+          ? forwardedHost[0]
+          : forwardedHost;
         apiBase = `${proto}://${host}`;
       } else if (directHost) {
         // Cenário 3: acesso direto (curl, dev local com header Host presente)
@@ -219,6 +232,7 @@ async function startServer() {
 
       html = html.replace("__APIBASE_PLACEHOLDER__", apiBase);
       res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
       res.send(html);
     } catch (err) {
       console.error("[painel] erro ao servir HTML:", err);
