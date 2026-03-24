@@ -43,12 +43,43 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
 
-  // Enable CORS for all routes - reflect the request origin to support credentials
+  // Cloudflare Tunnel (ou outro reverse proxy) envia x-forwarded-proto/host.
+  // Sem isso, req.protocol retorna "http" mesmo quando o acesso externo é HTTPS.
+  app.set("trust proxy", 1);
+
+  // ── CORS — whitelist de origens permitidas ──────────────────────────────────
+  // Requests nativos (React Native) não enviam Origin, então não são afetados.
+  // Apenas browsers são restringidos por CORS.
+  const allowedOrigins = new Set<string>();
+
+  // Produção: PUBLIC_URL (ex: https://geo.c2sistemas.online)
+  if (process.env.PUBLIC_URL) {
+    allowedOrigins.add(process.env.PUBLIC_URL.replace(/\/$/, ""));
+  }
+
+  // Dev local: Metro web e servidor Express
+  allowedOrigins.add("http://localhost:8081");
+  allowedOrigins.add("http://localhost:3000");
+  allowedOrigins.add("http://127.0.0.1:8081");
+  allowedOrigins.add("http://127.0.0.1:3000");
+
+  // Origens extras via env var (separadas por vírgula) para ambientes customizados
+  const extraOrigins = process.env.CORS_ORIGINS || "";
+  if (extraOrigins) {
+    extraOrigins.split(",").forEach((o: string) => {
+      const trimmed = o.trim().replace(/\/$/, "");
+      if (trimmed) allowedOrigins.add(trimmed);
+    });
+  }
+
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (origin) {
+
+    if (origin && allowedOrigins.has(origin)) {
       res.header("Access-Control-Allow-Origin", origin);
+      res.header("Access-Control-Allow-Credentials", "true");
     }
+
     res.header(
       "Access-Control-Allow-Methods",
       "GET, POST, PUT, DELETE, OPTIONS",
@@ -57,7 +88,6 @@ async function startServer() {
       "Access-Control-Allow-Headers",
       "Origin, X-Requested-With, Content-Type, Accept, Authorization",
     );
-    res.header("Access-Control-Allow-Credentials", "true");
 
     // Handle preflight requests
     if (req.method === "OPTIONS") {
@@ -97,6 +127,17 @@ async function startServer() {
       process.env.PAINEL_PASSWORD,
     );
   }
+
+  if (painelUsers.size === 0) {
+    console.warn(
+      "[SEGURANÇA] Nenhum usuário do painel configurado. " +
+      "Defina PAINEL_USERS=user:pass no .env. " +
+      "O painel ficará BLOQUEADO até que seja configurado."
+    );
+  } else {
+    console.log(`[painel] ${painelUsers.size} usuário(s) configurado(s)`);
+  }
+
   const sessionTokens = new Set<string>();
 
   function parseCookies(header: string | undefined): Record<string, string> {
@@ -110,7 +151,7 @@ async function startServer() {
   }
 
   function isPainelAuth(req: express.Request): boolean {
-    if (painelUsers.size === 0) return true; // sem usuários configurados = sem proteção
+    if (painelUsers.size === 0) return false; // sem usuários configurados = painel bloqueado
     const cookies = parseCookies(req.headers.cookie);
     const token = cookies["painel_session"];
     return !!token && sessionTokens.has(token);

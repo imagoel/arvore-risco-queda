@@ -12,17 +12,35 @@ import type { Express, Request, Response } from "express";
 // Diretório raiz de uploads (relativo ao processo)
 export const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
 
+// Pastas permitidas — qualquer valor fora dessa lista é rejeitado
+const PASTAS_PERMITIDAS = new Set(["arvores", "regioes"]);
+
 // Garante que os subdiretórios existem ao iniciar
-for (const sub of ["arvores", "regioes"]) {
+for (const sub of PASTAS_PERMITIDAS) {
   fs.mkdirSync(path.join(UPLOADS_DIR, sub), { recursive: true });
+}
+
+/** Valida e retorna o nome da pasta. Retorna undefined se inválido. */
+function validarPasta(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const pasta = raw.trim();
+  return PASTAS_PERMITIDAS.has(pasta) ? pasta : undefined;
+}
+
+/**
+ * Verifica se um caminho resolvido está dentro do diretório base.
+ * Previne path traversal (ex: ../../etc/passwd).
+ */
+function dentroDoUploads(resolvedPath: string): boolean {
+  const normalized = path.resolve(resolvedPath);
+  return normalized.startsWith(UPLOADS_DIR + path.sep) || normalized === UPLOADS_DIR;
 }
 
 // Configuração do multer: disco local
 const storage = multer.diskStorage({
   destination: (req, _file, cb) => {
-    const pasta = (req.query.pasta as string) || "arvores";
+    const pasta = validarPasta(req.query.pasta) || "arvores";
     const dir = path.join(UPLOADS_DIR, pasta);
-    fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
   filename: (_req, file, cb) => {
@@ -54,14 +72,21 @@ export function registerUploadRoutes(app: Express) {
       res.status(400).json({ error: "Nenhum arquivo enviado" });
       return;
     }
-    const pasta = (req.query.pasta as string) || "arvores";
+    const pasta = validarPasta(req.query.pasta) || "arvores";
     const url = `/uploads/${pasta}/${req.file.filename}`;
     res.json({ url });
   });
 
   // GET /uploads/:pasta/:filename  →  serve o arquivo de imagem
   app.use("/uploads", (req: Request, res: Response) => {
-    const filePath = path.join(UPLOADS_DIR, req.path);
+    const filePath = path.resolve(UPLOADS_DIR, req.path.replace(/^\//, ""));
+
+    // Bloqueia path traversal: o caminho resolvido deve estar dentro de UPLOADS_DIR
+    if (!dentroDoUploads(filePath)) {
+      res.status(403).json({ error: "Acesso negado" });
+      return;
+    }
+
     if (!fs.existsSync(filePath)) {
       res.status(404).json({ error: "Arquivo não encontrado" });
       return;
