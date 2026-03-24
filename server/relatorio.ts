@@ -287,11 +287,14 @@ export async function gerarRelatorio(req: Request, res: Response): Promise<void>
       const irqNorm = normalizarIrq(a.irqValor);
       const nome = a.nomeCientifico || "Árvore sem nome";
 
-      // Título da árvore
+      // Título da árvore (nome científico em itálico)
       children.push(
         new Paragraph({
           spacing: { before: 300 },
-          children: [new TextRun({ text: `${i + 1}. ${nome}`, bold: true, size: 24, font: "Arial", color: "000000" })],
+          children: [
+            new TextRun({ text: `${i + 1}. `, bold: true, size: 24, font: "Arial", color: "000000" }),
+            new TextRun({ text: nome, bold: true, italics: true, size: 24, font: "Arial", color: "000000" }),
+          ],
         }),
       );
 
